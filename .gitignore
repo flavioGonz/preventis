@@ -1,0 +1,29 @@
+# Dependencias
+node_modules/
+**/node_modules/
+
+# Build del frontend
+frontend/dist/
+
+# Secretos y entornos (NUNCA commitear)
+.env
+*.env
+!deploy/.env.example
+/etc/preventis/
+
+# Subidas y datos en runtime
+backend/uploads/
+backups/
+*.sql
+*.dump
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema
+.DS_Store
+Thumbs.db
+*.swp
+*.bak
+*.bak-*

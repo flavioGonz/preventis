@@ -1,0 +1,84 @@
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { api } from '../api.js';
+import { PageHeader, Loading, Empty, estadoBadge } from '../components/ui.jsx';
+import { Icon } from '../components/icons.jsx';
+import Drawer from '../components/Drawer.jsx';
+
+export default function Inventario() {
+  const [items, setItems] = useState(null);
+  const [clientes, setClientes] = useState([]);
+  const [sistemas, setSistemas] = useState([]);
+  const [estados, setEstados] = useState([]);
+  const [f, setF] = useState({ cliente_id: '', sistema_id: '', estado: '', search: '' });
+  const [sheet, setSheet] = useState(false);
+  const nav = useNavigate();
+
+  const load = () => {
+    const p = new URLSearchParams();
+    Object.entries(f).forEach(([k, v]) => v && p.set(k, v));
+    api.get('/api/inventario?' + p).then(setItems);
+  };
+  useEffect(() => { api.get('/api/clientes').then(setClientes); api.get('/api/sistemas').then(setSistemas); api.get('/api/estados_equipo').then(setEstados).catch(() => {}); }, []);
+  useEffect(load, [f]);
+  const set = (k, v) => setF({ ...f, [k]: v });
+  const filtCount = (f.cliente_id ? 1 : 0) + (f.sistema_id ? 1 : 0) + (f.estado ? 1 : 0);
+
+  return (
+    <div>
+      <PageHeader icon="box" title="Inventario" desc="Todos los equipos instalados, con su foto y QR" />
+      <div className="searchbar">
+        <div className="wa-search">
+          <Icon name="search" size={17} />
+          <input placeholder="Buscar etiqueta, codigo o modelo..." value={f.search} onChange={e => set('search', e.target.value)} />
+        </div>
+        <button className={'btn-filter' + (filtCount ? ' on' : '')} onClick={() => setSheet(true)}>
+          <Icon name="filter" size={16} />Filtros{filtCount ? <span className="fc">{filtCount}</span> : null}
+        </button>
+      </div>
+
+      <Drawer open={sheet} onClose={() => setSheet(false)} title="Filtros" side="bottom"
+        footer={<><button className="btn ghost" onClick={() => setF({ cliente_id: '', sistema_id: '', estado: '', search: f.search })}>Limpiar</button><button className="btn" onClick={() => setSheet(false)}>Aplicar</button></>}>
+        <div className="filter-sheet">
+          <div className="field"><label>Cliente</label>
+            <select value={f.cliente_id} onChange={e => set('cliente_id', e.target.value)}>
+              <option value="">Todos los clientes</option>{clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select></div>
+          <div className="field"><label>Sistema</label>
+            <select value={f.sistema_id} onChange={e => set('sistema_id', e.target.value)}>
+              <option value="">Todos los sistemas</option>{sistemas.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+            </select></div>
+          <div className="field"><label>Estado del equipo</label>
+            <select value={f.estado} onChange={e => set('estado', e.target.value)}>
+              <option value="">Todos los estados</option>
+              <option value="falla">En falla</option>
+              <option value="ok">OK (sin falla)</option>
+              <option value="sin_probar">Sin probar</option>
+              {estados.map(s => <option key={s.id} value={s.nombre}>{s.nombre}</option>)}
+            </select></div>
+        </div>
+      </Drawer>
+      {items === null ? <Loading /> :
+        items.length === 0 ? <Empty icon="box" title="Sin equipos">No hay equipos con esos filtros.</Empty> :
+          <>
+            <div className="muted" style={{ margin: '2px 2px 10px', fontSize: 13 }}>{items.length} equipos</div>
+            <div className="card pad-sm">
+              <div className="tablewrap"><table className="table">
+                <thead><tr><th>Foto</th><th>QR</th><th>Etiqueta</th><th>Cliente</th><th>Sistema</th><th>Tipo</th><th>Estado</th></tr></thead>
+                <tbody>{items.map(e => (
+                  <tr key={e.id} style={{ cursor: 'pointer' }} onClick={() => nav('/equipos/' + e.id)}>
+                    <td>{e.foto_path ? <img className="inv-thumb" src={api.base + e.foto_path} /> : <div className="inv-ph"><Icon name="box" size={18} /></div>}</td>
+                    <td><img className="inv-thumb" src={api.fileUrl('/api/equipos/' + e.id + '/qr.png')} /></td>
+                    <td><b>{e.etiqueta || '-'}</b><div className="subtle mono" style={{ fontSize: 11 }}>{e.codigo_qr}</div></td>
+                    <td>{e.cliente}</td>
+                    <td>{e.sistema || '-'}</td>
+                    <td>{e.tipo_elemento || '-'}</td>
+                    <td>{estadoBadge(e.ultimo_estado, e.ultima_falla)}</td>
+                  </tr>
+                ))}</tbody>
+              </table></div>
+            </div>
+          </>}
+    </div>
+  );
+}

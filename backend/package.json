@@ -1,0 +1,24 @@
+{
+  "name": "preventis-backend",
+  "version": "0.1.0",
+  "description": "API Mantenimientos Preventivos",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "initdb": "node src/initdb.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "exceljs": "^4.4.0",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^1.4.5-lts.1",
+    "pdfkit": "^0.15.0",
+    "pg": "^8.12.0",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.3"
+  }
+}

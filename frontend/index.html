@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#1d4ed8" />
+    <title>Preventis - IES</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/icon-180.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Preventis" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      #splash { position:fixed; inset:0; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px;
+        background:radial-gradient(900px 500px at 50% 30%, #eaf1fb 0%, #f6f8fb 70%); transition:opacity .35s ease; }
+      #splash img { width:170px; max-width:60%; }
+      #splash .sp-bar { width:140px; height:4px; border-radius:99px; background:#dbe3ec; overflow:hidden; position:relative; }
+      #splash .sp-bar::after { content:''; position:absolute; left:-40%; top:0; height:100%; width:40%; border-radius:99px;
+        background:linear-gradient(90deg,#2563eb,#1e40af); animation:spm 1s infinite ease-in-out; }
+      #splash.hide { opacity:0; pointer-events:none; }
+      @keyframes spm { from{left:-40%} to{left:100%} }
+    </style>
+    <script>try{var t=localStorage.getItem('preventis_theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+  </head>
+  <body>
+    <div id="splash"><img src="/logo_es.png" alt="IES" /><div class="sp-bar"></div></div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
