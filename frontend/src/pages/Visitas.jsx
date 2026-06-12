@@ -56,8 +56,8 @@ export default function Visitas() {
   const agendar = async (f) => {
     if (!f.cliente_id) return;
     try {
-      const v = await api.post('/api/clientes/' + f.cliente_id + '/visitas', { fecha: f.fecha || null, tecnico_id: f.tecnico_id || null, asignada_por: f.asignada_por || null, tipo: f.tipo || 'preventiva', contrato_id: f.contrato_id || null });
-      toast.ok('Visita agendada'); setNuevo(null); nav('/visitas/' + v.id);
+      const v = await api.post('/api/clientes/' + f.cliente_id + '/visitas', { fecha: f.fecha || null, dias: f.dias || null, tecnico_id: f.tecnico_id || null, asignada_por: f.asignada_por || null, tipo: f.tipo || 'preventiva', contrato_id: f.contrato_id || null });
+      toast.ok(f.dias && f.dias.length > 1 ? 'Visita de ' + f.dias.length + ' días agendada' : 'Visita agendada'); setNuevo(null); nav('/visitas/' + v.id);
     } catch (e) { toast.err(e.message); }
   };
 
@@ -229,44 +229,85 @@ export default function Visitas() {
 
 
 export function AgendarModal({ nuevo, clientes, tecnicos, onClose, onSave }) {
-  const [f, setF] = useState(nuevo);
+  const [f, setF] = useState({ ...nuevo, modo: nuevo.modo || 'un_dia', hasta: nuevo.hasta || '', sinFinde: nuevo.sinFinde !== false });
   const [contratos, setContratos] = useState([]);
-  const set = (k, v) => setF({ ...f, [k]: v });
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
   useEffect(() => {
     if (!f.cliente_id) { setContratos([]); return; }
     api.get('/api/clientes/' + f.cliente_id + '/contratos').then(cs => setContratos(cs || [])).catch(() => setContratos([]));
   }, [f.cliente_id]);
+  const L = (icon, txt) => <span className="flabel"><Icon name={icon} size={13} />{txt}</span>;
+  const dias = React.useMemo(() => {
+    if (f.modo !== 'varios' || !f.fecha || !f.hasta) return [];
+    const a = new Date(f.fecha + 'T00:00:00'), b = new Date(f.hasta + 'T00:00:00');
+    if (isNaN(a) || isNaN(b) || b < a) return [];
+    const out = [];
+    for (let d = new Date(a); d <= b; d.setDate(d.getDate() + 1)) {
+      const dow = d.getDay();
+      if (f.sinFinde && (dow === 0 || dow === 6)) continue;
+      out.push(_ymd(d));
+      if (out.length > 60) break;
+    }
+    return out;
+  }, [f.modo, f.fecha, f.hasta, f.sinFinde]);
+  const guardar = () => {
+    if (f.modo === 'varios') {
+      if (!dias.length) { toast.err('Elegi un rango valido (revisa las fechas o el filtro de fin de semana)'); return; }
+      onSave({ ...f, fecha: dias[0], dias });
+    } else onSave({ ...f, dias: null });
+  };
+  const fmtCorta = (d) => new Date(d + 'T00:00:00').toLocaleDateString('es-UY', { day: '2-digit', month: '2-digit' });
   return (
-    <Modal title="Agendar visita" subtitle="Selecciona el cliente y la fecha" onClose={onClose}
-      footer={<><button className="btn ghost" onClick={onClose}>Cancelar</button><button className="btn" onClick={() => onSave(f)} disabled={!f.cliente_id}><Icon name="calendar" size={16} />Agendar</button></>}>
-      <Field label="Cliente">
+    <Modal title="Agendar visita" subtitle="Selecciona el cliente y la(s) fecha(s)" onClose={onClose}
+      footer={<><button className="btn ghost" onClick={onClose}>Cancelar</button><button className="btn" onClick={guardar} disabled={!f.cliente_id}><Icon name="calendar" size={16} />Agendar{f.modo === 'varios' && dias.length ? ' (' + dias.length + ' dias)' : ''}</button></>}>
+      <Field label={L('building', 'Cliente')}>
         <select value={f.cliente_id} onChange={e => set('cliente_id', e.target.value)}>
           <option value="">- Seleccionar cliente -</option>
           {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
         </select>
       </Field>
-      <div className="grid2">
-        <Field label="Fecha"><input type="date" value={f.fecha} onChange={e => set('fecha', e.target.value)} /></Field>
-        <Field label="Tecnico">
+      <Field label={L('clock', 'Duracion')}>
+        <div className="tipo-seg">
+          <button type="button" className={'tipo-opt' + (f.modo !== 'varios' ? ' on' : '')} onClick={() => set('modo', 'un_dia')}><Icon name="calendar" size={15} />Un dia</button>
+          <button type="button" className={'tipo-opt' + (f.modo === 'varios' ? ' on' : '')} onClick={() => set('modo', 'varios')}><Icon name="repeat" size={15} />Varios dias</button>
+        </div>
+      </Field>
+      {f.modo !== 'varios' ? (
+        <div className="grid2">
+          <Field label={L('calendar', 'Fecha')}><input type="date" value={f.fecha || ''} onChange={e => set('fecha', e.target.value)} /></Field>
+          <Field label={L('users', 'Tecnico')}>
+            <select value={f.tecnico_id} onChange={e => set('tecnico_id', e.target.value)}>
+              <option value="">- Sin asignar -</option>{tecnicos.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+            </select>
+          </Field>
+        </div>
+      ) : (<>
+        <div className="grid2">
+          <Field label={L('calendar', 'Desde')}><input type="date" value={f.fecha || ''} onChange={e => set('fecha', e.target.value)} /></Field>
+          <Field label={L('calendar', 'Hasta')}><input type="date" value={f.hasta || ''} onChange={e => set('hasta', e.target.value)} /></Field>
+        </div>
+        <Field label={L('users', 'Tecnico')}>
           <select value={f.tecnico_id} onChange={e => set('tecnico_id', e.target.value)}>
-            <option value="">- Sin asignar -</option>
-            {tecnicos.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+            <option value="">- Sin asignar -</option>{tecnicos.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
           </select>
         </Field>
-      </div>
-      <Field label={<span className="flabel"><Icon name="wrench" size={13} />Tipo de visita</span>}>
+        <label className="chk-row"><input type="checkbox" checked={f.sinFinde} onChange={e => set('sinFinde', e.target.checked)} />Excluir sabados y domingos</label>
+        {dias.length > 0 ? <div className="jor-prev"><Icon name="calendar" size={13} /><span>{dias.length} jornada(s): {dias.map((d, i) => 'D' + (i + 1) + ' ' + fmtCorta(d)).join('  ·  ')}</span></div>
+          : (f.fecha && f.hasta) ? <div className="jor-prev warn"><Icon name="alert" size={13} /><span>El rango no genera dias. Revisa las fechas o el filtro de fin de semana.</span></div> : null}
+      </>)}
+      <Field label={L('wrench', 'Tipo de visita')}>
         <div className="tipo-seg">
           <button type="button" className={'tipo-opt' + (f.tipo !== 'correctiva' ? ' on' : '')} onClick={() => set('tipo', 'preventiva')}><Icon name="checkCircle" size={15} />Preventiva (contrato)</button>
           <button type="button" className={'tipo-opt corr' + (f.tipo === 'correctiva' ? ' on' : '')} onClick={() => set('tipo', 'correctiva')}><Icon name="alert" size={15} />Correctiva</button>
         </div>
       </Field>
-      {contratos.length > 0 && <Field label={<span className="flabel"><Icon name="pen" size={13} />Contrato asociado (opcional)</span>}>
+      {contratos.length > 0 && <Field label={L('pen', 'Contrato asociado (opcional)')}>
         <select value={f.contrato_id || ''} onChange={e => set('contrato_id', e.target.value)}>
           <option value="">- Sin contrato -</option>
           {contratos.map(k => <option key={k.id} value={k.id}>{k.titulo}</option>)}
         </select>
       </Field>}
-      <Field label="Asignada por"><input value={f.asignada_por} placeholder="Quien asigna la visita" onChange={e => set('asignada_por', e.target.value)} /></Field>
+      <Field label={L('pen', 'Asignada por')}><input value={f.asignada_por} placeholder="Quien asigna la visita" onChange={e => set('asignada_por', e.target.value)} /></Field>
     </Modal>
   );
 }
@@ -314,15 +355,23 @@ function Calendario({ visitas, tecnicos = [], onOpen, onReschedule, onReassign, 
   const [, setTick] = useState(0);
   useEffect(() => { const t = setInterval(() => setTick(x => x + 1), 60000); return () => clearInterval(t); }, []); // mueve la linea de "ahora"
   const hoy = _ymd(new Date());
+  // Expandir visitas de varios dias: una "tarjeta" por jornada (Dia k/N)
+  const eventos = [];
+  for (const v of visitas) {
+    if (v.multidia && Array.isArray(v.jornadas) && v.jornadas.length) {
+      const tot = v.jornadas.length;
+      for (const j of v.jornadas) eventos.push({ ...v, fecha: (j.fecha || '').slice(0, 10), _dia: j.orden, _diaTot: tot, _jestado: j.estado });
+    } else eventos.push(v);
+  }
   const byDay = {};
-  for (const v of visitas) { const k = (v.fecha || '').slice(0, 10); if (!k) continue; (byDay[k] = byDay[k] || []).push(v); }
+  for (const v of eventos) { const k = (v.fecha || '').slice(0, 10); if (!k) continue; (byDay[k] = byDay[k] || []).push(v); }
   const monday = (d) => { const x = new Date(d); const dow = (x.getDay() + 6) % 7; x.setDate(x.getDate() - dow); x.setHours(0, 0, 0, 0); return x; };
   const drop = (e, k, tec) => { e.preventDefault(); setOver(null); const dat = e.dataTransfer.getData('text/plain'); if (!dat) return; if (dat.startsWith('n:')) { onCreate && onCreate(Number(dat.slice(2)), k, tec || null); return; } onReschedule(Number(dat), k); };
   const evChip = (v) => { const [c] = EST[v.estado] || EST.programada; return (
-    <div key={v.id} className={'cal-ev ' + c + (esVenc(v) ? ' venc' : '')} draggable onDragStart={e => { e.stopPropagation(); e.dataTransfer.setData('text/plain', String(v.id)); }}
+    <div key={v.id + '-' + (v._dia || 0)} className={'cal-ev ' + c + (esVenc(v) ? ' venc' : '') + (v._diaTot ? ' multi' : '')} draggable={!v._diaTot} onDragStart={e => { if (v._diaTot) { e.preventDefault(); return; } e.stopPropagation(); e.dataTransfer.setData('text/plain', String(v.id)); }}
       onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtx({ x: e.clientX, y: e.clientY, v }); }}
-      onClick={e => { e.stopPropagation(); onOpen(v.id); }} title={v.cliente + ' - ' + (v.tecnico || '')}>
-      <span className="dot" />{v.cliente}{v.tecnico ? ' · ' + v.tecnico : ''}
+      onClick={e => { e.stopPropagation(); onOpen(v.id); }} title={v.cliente + (v._diaTot ? ' · Dia ' + v._dia + '/' + v._diaTot : '') + ' - ' + (v.tecnico || '')}>
+      <span className="dot" />{v._diaTot ? <b className="cal-dia">D{v._dia}/{v._diaTot}</b> : null}{v.cliente}{v.tecnico ? ' · ' + v.tecnico : ''}
     </div>
   ); };
 
@@ -378,7 +427,7 @@ function Calendario({ visitas, tecnicos = [], onOpen, onReschedule, onReassign, 
               </div>
               {days.map(d => {
                 const k = _ymd(d);
-                const evs = visitas.filter(v => (v.fecha || '').slice(0, 10) === k && ((f.id === 0 && !(v.tecnico_ids || []).length) || (f.id !== 0 && (v.tecnico_ids || []).map(Number).includes(f.id)))).sort((a, b) => ((a.orden ?? 9999) - (b.orden ?? 9999)) || (a.id - b.id));
+                const evs = eventos.filter(v => (v.fecha || '').slice(0, 10) === k && ((f.id === 0 && !(v.tecnico_ids || []).length) || (f.id !== 0 && (v.tecnico_ids || []).map(Number).includes(f.id)))).sort((a, b) => ((a.orden ?? 9999) - (b.orden ?? 9999)) || (a.id - b.id));
                 return (
                   <div key={'c' + f.id + k} className={'tb-cell' + (over === f.id + '|' + k ? ' over' : '') + (k === hoy ? ' hoy' : '')}
                     onDragOver={e => { e.preventDefault(); const ok = f.id + '|' + k; if (over !== ok) setOver(ok); }}
@@ -386,16 +435,16 @@ function Calendario({ visitas, tecnicos = [], onOpen, onReschedule, onReassign, 
                     onDrop={e => { e.preventDefault(); setOver(null); const dat = e.dataTransfer.getData('text/plain'); if (!dat) return; if (dat.startsWith('n:')) { onCreate && onCreate(Number(dat.slice(2)), k, f.id); return; } if (onReassign) onReassign(Number(dat), k, f.id); }}
                     onClick={() => onDayNew(k)}>
                     {evs.map(v => { const [cls, ic] = ESTI[v.estado] || ESTI.programada; return (
-                      <div key={v.id} className={'tb-chip ' + cls + (esVenc(v) ? ' tb-venc' : '')} draggable
-                        onDragStart={e => { e.stopPropagation(); e.dataTransfer.setData('text/plain', String(v.id)); }}
+                      <div key={v.id + '-' + (v._dia || 0)} className={'tb-chip ' + cls + (esVenc(v) ? ' tb-venc' : '') + (v._diaTot ? ' multi' : '')} draggable={!v._diaTot}
+                        onDragStart={e => { if (v._diaTot) { e.preventDefault(); return; } e.stopPropagation(); e.dataTransfer.setData('text/plain', String(v.id)); }}
                         onDragOver={e => { e.preventDefault(); e.stopPropagation(); }}
                         onDrop={e => { e.preventDefault(); e.stopPropagation(); setOver(null); const dat = e.dataTransfer.getData('text/plain'); if (dat.startsWith('n:')) { onCreate && onCreate(Number(dat.slice(2)), k, f.id); return; } const id = Number(dat); if (!id || id === v.id) return;
                           const enCelda = evs.some(x => x.id === id);
                           if (enCelda && onReorder) { const ids = evs.map(x => x.id).filter(x => x !== id); ids.splice(ids.indexOf(v.id), 0, id); onReorder(ids); }
                           else if (onReassign) { onReassign(id, k, f.id); } }}
                         onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtx({ x: e.clientX, y: e.clientY, v }); }}
-                        onClick={e => { e.stopPropagation(); onOpen(v.id); }} title={v.cliente + (v.tipo === 'correctiva' ? ' · Correctiva' : '')}>
-                        <Icon name={ic} size={11} />{v.tipo === 'correctiva' && <span className="tb-corr" />}{v.cliente}
+                        onClick={e => { e.stopPropagation(); onOpen(v.id); }} title={v.cliente + (v._diaTot ? ' · Dia ' + v._dia + '/' + v._diaTot : '') + (v.tipo === 'correctiva' ? ' · Correctiva' : '')}>
+                        <Icon name={ic} size={11} />{v.tipo === 'correctiva' && <span className="tb-corr" />}{v._diaTot ? <b className="cal-dia">D{v._dia}/{v._diaTot}</b> : null}{v.cliente}
                       </div>
                     ); })}
                   </div>

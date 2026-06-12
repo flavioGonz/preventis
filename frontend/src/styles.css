@@ -1924,3 +1924,29 @@ input[type="date"], input[type="datetime-local"], input[type="time"] { max-width
 .eqm-cols .brd-sec .field { margin-bottom:10px; }
 .eqm-cols .brd-sec .field:last-child { margin-bottom:0; }
 
+/* ===== Visitas de varios dias (multi-dia) ===== */
+.chk-row{ display:flex; align-items:center; gap:8px; font-size:13.5px; color:var(--text); margin:2px 0 12px; cursor:pointer; }
+.chk-row input{ width:16px; height:16px; }
+.jor-prev{ display:flex; gap:8px; align-items:flex-start; font-size:12.5px; color:var(--brand-700); background:var(--brand-soft); border:1px solid var(--brand-100); border-radius:10px; padding:9px 11px; line-height:1.55; margin-bottom:4px; }
+.jor-prev svg{ flex:none; margin-top:2px; }
+.jor-prev.warn{ color:#92400e; background:#fef3c7; border-color:#fde68a; }
+.cal-dia{ font-size:9.5px; font-weight:800; background:rgba(0,0,0,.14); border-radius:4px; padding:0 3px; margin-right:3px; }
+.cal-ev.multi{ border-left:3px solid var(--brand-500); }
+.tb-chip.multi{ box-shadow:inset 2px 0 0 var(--brand-500); }
+
+/* ===== Jornadas en la ficha de visita ===== */
+.jor-card .sec-head{ display:flex; align-items:center; }
+.jor-list{ display:flex; flex-direction:column; gap:8px; }
+.jor-item{ display:flex; align-items:center; gap:12px; padding:10px 12px; border:1px solid var(--border,#e3e8ef); border-radius:12px; background:var(--surface); }
+.jor-item.en_curso{ border-color:var(--brand-300,#93c5fd); background:var(--brand-soft); }
+.jor-item.completada{ background:var(--surface-2); }
+.jor-ic{ width:34px; height:34px; flex:none; border-radius:10px; display:grid; place-items:center; background:var(--surface-2); color:var(--muted); }
+.jor-item.en_curso .jor-ic{ background:var(--brand-600); color:#fff; }
+.jor-item.completada .jor-ic{ background:#dcfce7; color:#16a34a; }
+.jor-body{ flex:1; min-width:0; }
+.jor-top{ display:flex; align-items:center; gap:8px; font-size:14px; flex-wrap:wrap; }
+.jor-sub{ font-size:12.5px; color:var(--muted); margin-top:2px; display:flex; gap:4px; align-items:center; flex-wrap:wrap; }
+.jor-act{ display:flex; align-items:center; gap:8px; flex:none; }
+.jor-tec{ height:34px; font-size:13px; padding:4px 8px; min-width:130px; }
+@media (max-width:640px){ .jor-item{ flex-wrap:wrap; } .jor-act{ width:100%; } .jor-tec{ flex:1; } }
+

@@ -115,8 +115,8 @@ export default function Mapa() {
   const guardarAgenda = async (f) => {
     if (!f.cliente_id) return;
     try {
-      const v = await api.post('/api/clientes/' + f.cliente_id + '/visitas', { fecha: f.fecha || null, tecnico_id: f.tecnico_id || null, asignada_por: f.asignada_por || null, tipo: f.tipo || 'preventiva', contrato_id: f.contrato_id || null });
-      toast.ok('Visita agendada'); setAgendaNuevo(null); nav('/visitas/' + v.id);
+      const v = await api.post('/api/clientes/' + f.cliente_id + '/visitas', { fecha: f.fecha || null, dias: f.dias || null, tecnico_id: f.tecnico_id || null, asignada_por: f.asignada_por || null, tipo: f.tipo || 'preventiva', contrato_id: f.contrato_id || null });
+      toast.ok(f.dias && f.dias.length > 1 ? 'Visita de ' + f.dias.length + ' días agendada' : 'Visita agendada'); setAgendaNuevo(null); nav('/visitas/' + v.id);
     } catch (e) { toast.err(e.message); }
   };
   // Navegar: elegir tecnico del mapa y dibujar la ruta real

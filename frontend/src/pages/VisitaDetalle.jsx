@@ -159,6 +159,15 @@ export default function VisitaDetalle({ user }) {
   };
 
   if (!visita) return <Loading />;
+  const jorn = visita.jornadas || [];
+  const jEnCurso = jorn.find(j => j.estado === 'en_curso');
+  const jPend = jorn.filter(j => j.estado === 'planificada').length;
+  const jDone = jorn.filter(j => j.estado === 'completada').length;
+  const multiInfo = visita.multidia ? (jEnCurso ? 'Dia ' + jEnCurso.orden + '/' + jorn.length : (visita.estado === 'en_curso' && jPend ? 'En pausa' : null)) : null;
+  const JEST = { planificada: 'Planificada', en_curso: 'En curso', completada: 'Completada' };
+  const iniciarJornada = async (jid) => { try { const g = await getGPS(); await api.post('/api/visitas/' + id + '/jornadas/' + jid + '/iniciar', { lat: g?.lat, lon: g?.lon }); toast.ok('Jornada iniciada'); loadVisita(); } catch (e) { toast.err(e.message); } };
+  const pausarJornada = async (jid) => { const nota = (prompt('Nota de la jornada (opcional):', '') || '').trim(); try { await api.post('/api/visitas/' + id + '/jornadas/' + jid + '/pausar', { nota: nota || null }); toast.ok('Jornada pausada (continua otro dia)'); loadVisita(); } catch (e) { toast.err(e.message); } };
+  const reassignJornada = async (jid, tecnico_id) => { try { await api.put('/api/visitas/' + id + '/jornadas/' + jid, { tecnico_id: tecnico_id ? Number(tecnico_id) : 0 }); loadVisita(); } catch (e) { toast.err(e.message); } };
   const fotos = (visita.archivos || []).filter(a => a.tipo === 'foto');
   const adjuntos = (visita.archivos || []).filter(a => a.tipo === 'adjunto');
   const total = sug?.length || 0;
@@ -179,7 +188,7 @@ export default function VisitaDetalle({ user }) {
   if (cancelada) {
     if (esAdmin) acts.push({ key: 'reactivar', label: 'Reactivar visita', icon: 'edit', cls: 'btn sec', onClick: () => cambiarEstado('reabrir') });
   } else {
-    if (visita.estado !== 'en_curso' && visita.estado !== 'cerrada') acts.push({ key: 'iniciar', label: 'Iniciar', icon: 'arrowRight', cls: 'btn', onClick: () => cambiarEstado('iniciar') });
+    if (visita.estado !== 'en_curso' && visita.estado !== 'cerrada' && !visita.multidia) acts.push({ key: 'iniciar', label: 'Iniciar', icon: 'arrowRight', cls: 'btn', onClick: () => cambiarEstado('iniciar') });
     if (visita.estado === 'en_curso') acts.push({ key: 'cerrar', label: 'Cerrar visita', icon: 'checkCircle', cls: 'btn ok-cta', onClick: () => setCerrarOpen(true) });
     if (visita.estado === 'cerrada') acts.push({ key: 'reabrir', label: 'Reabrir', icon: 'edit', cls: 'btn sec', onClick: () => cambiarEstado('reabrir') });
     if (esAdmin && visita.estado !== 'cerrada') acts.push({ key: 'cancelar', label: 'Cancelar', icon: 'x', cls: 'btn ghost', onClick: () => setCancelarOpen(true) });
@@ -211,6 +220,7 @@ export default function VisitaDetalle({ user }) {
             <div className="ttl">Visita - {fechaUY(visita.fecha)}</div>
             <span className="row wrap" style={{ gap: 6 }}>
               {estadoVisita(visita.estado)}
+              {multiInfo && <span className={'badge mini ' + (multiInfo === 'En pausa' ? 'warn' : 'info')}><Icon name={multiInfo === 'En pausa' ? 'clock' : 'repeat'} size={11} />{multiInfo}</span>}
               {visita.tipo && <span className={'badge mini ' + (visita.tipo === 'correctiva' ? 'warn' : 'info')}>{visita.tipo === 'correctiva' ? 'Correctiva' : 'Preventiva'}</span>}
               {visita.facturar === true && <span className="badge mini ok">Facturar</span>}
               {visita.facturar === false && <span className="badge mini gris">No facturar</span>}
@@ -253,6 +263,39 @@ export default function VisitaDetalle({ user }) {
           {acts.map(a => <button key={a.key} className={a.cls || 'btn sec'} disabled={a.disabled} onClick={a.onClick}><Icon name={a.icon} size={16} />{a.label}</button>)}
         </div>
       </div>
+
+      {visita.multidia && jorn.length > 0 && <div className="card jor-card">
+        <div className="sec-head"><span className="fc-ic"><Icon name="calendar" size={17} /></span><b>Jornadas de la visita</b>
+          <span className="muted" style={{ marginLeft: 'auto', fontSize: 13 }}>{jDone} de {jorn.length} dias trabajados</span>
+        </div>
+        <div className="jor-list">
+          {jorn.map(j => {
+            const fd = new Date((j.fecha || '').slice(0, 10) + 'T00:00:00');
+            const est = j.estado;
+            return (
+              <div key={j.id} className={'jor-item ' + est}>
+                <div className="jor-ic"><Icon name={est === 'completada' ? 'check' : est === 'en_curso' ? 'clock' : 'calendar'} size={15} /></div>
+                <div className="jor-body">
+                  <div className="jor-top"><b>Dia {j.orden}</b> · {fd.toLocaleDateString('es-UY', { weekday: 'short', day: '2-digit', month: '2-digit' })}
+                    <span className={'badge mini ' + (est === 'completada' ? 'ok' : est === 'en_curso' ? 'info' : 'gris')}>{JEST[est] || est}</span>
+                  </div>
+                  <div className="jor-sub">
+                    {(j.hora_inicio || j.hora_fin) && <span><Icon name="clock" size={12} /> {j.hora_inicio ? hhmm(j.hora_inicio) : '--:--'} → {j.hora_fin ? hhmm(j.hora_fin) : '...'}</span>}
+                    {j.nota && <span className="muted"> · {j.nota}</span>}
+                  </div>
+                </div>
+                {visita.estado !== 'cerrada' && <div className="jor-act">
+                  <select className="jor-tec" value={j.tecnico_id || ''} onChange={e => reassignJornada(j.id, e.target.value)} title="Tecnico del dia">
+                    <option value="">Sin tecnico</option>{tecnicos.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                  </select>
+                  {est === 'planificada' && <button className="btn sm" onClick={() => iniciarJornada(j.id)}><Icon name="arrowRight" size={14} />Iniciar</button>}
+                  {est === 'en_curso' && <button className="btn sec sm" onClick={() => pausarJornada(j.id)}><Icon name="clock" size={14} />Pausar</button>}
+                </div>}
+              </div>
+            );
+          })}
+        </div>
+      </div>}
 
       <div className="card">
         <div className="sec-head"><span className="fc-ic"><Icon name="clipboard" size={17} /></span><b>Datos de la visita</b></div>

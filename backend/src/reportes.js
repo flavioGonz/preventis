@@ -19,6 +19,8 @@ export function mountReportes(app, q) {
     return null;
   }
   const fdate = (d) => d ? new Date(d).toLocaleDateString('es-UY') : '-';
+  const hm = (min) => { if (min == null) return '-'; const h = Math.floor(min / 60), m = min % 60; return h ? (h + 'h' + (m ? ' ' + m + 'm' : '')) : (m + 'm'); };
+
   const fdt = (d) => d ? new Date(d).toLocaleString('es-UY', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
   const TIPO = (t) => t === 'correctiva' ? 'Correctivo' : t === 'preventiva' ? 'Preventivo' : (t || '-');
   function rangoTxt(query) {
@@ -40,9 +42,13 @@ export function mountReportes(app, q) {
     return { where: cond.length ? 'WHERE ' + cond.join(' AND ') : '', params };
   }
   const VISITAS_SQL = (where) => `
-    SELECT v.id, v.fecha, v.estado, v.tipo, v.cerrada, v.asignada_por, v.ticket_id, v.fecha_max_resolucion, v.hora_entrada, v.hora_salida,
+    SELECT v.id, v.fecha, v.fecha_fin, v.multidia, v.estado, v.tipo, v.cerrada, v.asignada_por, v.ticket_id, v.fecha_max_resolucion, v.hora_entrada, v.hora_salida,
       CASE WHEN v.hora_entrada IS NOT NULL AND v.hora_salida IS NOT NULL
         THEN round(EXTRACT(EPOCH FROM (v.hora_salida - v.hora_entrada))/60)::int END AS duracion_min,
+      COALESCE((SELECT NULLIF(round(SUM(EXTRACT(EPOCH FROM (j.hora_fin - j.hora_inicio)))/60)::int, 0) FROM visita_jornadas j WHERE j.visita_id=v.id AND j.hora_inicio IS NOT NULL AND j.hora_fin IS NOT NULL),
+        CASE WHEN v.hora_entrada IS NOT NULL AND v.hora_salida IS NOT NULL THEN round(EXTRACT(EPOCH FROM (v.hora_salida - v.hora_entrada))/60)::int END) AS trabajado_min,
+      (SELECT count(*)::int FROM visita_jornadas j WHERE j.visita_id=v.id) AS dias_plan,
+      (SELECT count(*)::int FROM visita_jornadas j WHERE j.visita_id=v.id AND j.hora_inicio IS NOT NULL) AS dias_trab,
       c.nombre AS cliente,
       COALESCE((SELECT string_agg(t2.nombre, ', ' ORDER BY t2.nombre) FROM visita_tecnicos vt JOIN tecnicos t2 ON t2.id=vt.tecnico_id WHERE vt.visita_id=v.id), t.nombre) AS tecnico,
       (SELECT count(*) FROM pruebas p WHERE p.visita_id=v.id)::int AS pruebas,
@@ -67,12 +73,15 @@ export function mountReportes(app, q) {
       { header: 'Fecha max. resol.', key: 'fmax', width: 15 },
       { header: 'Entrada', key: 'entrada', width: 17 }, { header: 'Salida', key: 'salida', width: 17 },
       { header: 'Ejecucion (min)', key: 'duracion_min', width: 14 },
+      { header: 'Trabajado (min)', key: 'trabajado_min', width: 15 },
+      { header: 'Dias plan.', key: 'dias_plan', width: 9 }, { header: 'Dias trab.', key: 'dias_trab', width: 9 },
+      { header: 'Fecha fin', key: 'ffin', width: 13 },
       { header: 'Pruebas', key: 'pruebas', width: 9 }, { header: 'Fallas', key: 'fallas', width: 8 },
       { header: 'Asignada por', key: 'asignada_por', width: 18 },
     ];
     ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
     ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1D4ED8' } };
-    rows.forEach(r => ws.addRow({ ...r, fecha: fdate(r.fecha), tipo: TIPO(r.tipo), ticket: r.ticket_id ? 'TK-' + r.ticket_id : '', fmax: fdate(r.fecha_max_resolucion), entrada: fdt(r.hora_entrada), salida: fdt(r.hora_salida) }));
+    rows.forEach(r => ws.addRow({ ...r, fecha: fdate(r.fecha), tipo: TIPO(r.tipo), ticket: r.ticket_id ? 'TK-' + r.ticket_id : '', fmax: fdate(r.fecha_max_resolucion), ffin: r.multidia ? fdate(r.fecha_fin) : '', entrada: fdt(r.hora_entrada), salida: fdt(r.hora_salida) }));
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename="reporte_visitas.xlsx"');
     res.send(Buffer.from(await wb.xlsx.writeBuffer()));
@@ -92,7 +101,8 @@ export function mountReportes(app, q) {
         { h: 'Estado', w: 62, get: r => r.estado },
         { h: 'F.max resol', w: 58, get: r => fdate(r.fecha_max_resolucion) },
         { h: 'Entrada', w: 82, get: r => fdt(r.hora_entrada) },
-        { h: 'Ejec.', w: 42, align: 'right', get: r => r.duracion_min != null ? r.duracion_min + 'm' : '-' },
+        { h: 'Dias', w: 38, align: 'right', get: r => r.multidia ? (r.dias_trab + '/' + r.dias_plan) : '-' },
+        { h: 'Trabajado', w: 56, align: 'right', get: r => hm(r.trabajado_min) },
         { h: 'Pru.', w: 34, align: 'right', get: r => r.pruebas },
         { h: 'Fallas', w: 40, align: 'right', get: r => r.fallas, color: r => r.fallas > 0 ? '#dc2626' : '#0f172a' },
       ],

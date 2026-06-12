@@ -234,6 +234,7 @@ app.get('/api/visitas/:id', wrap(async (req, res) => {
   const visita = r.rows[0];
   const arch = await q('SELECT * FROM visita_archivos WHERE visita_id=$1 ORDER BY id', [req.params.id]);
   visita.archivos = arch.rows;
+  visita.jornadas = (await q('SELECT j.*, t.nombre AS tecnico FROM visita_jornadas j LEFT JOIN tecnicos t ON t.id=j.tecnico_id WHERE j.visita_id=$1 ORDER BY j.orden, j.fecha, j.id', [req.params.id])).rows;
   res.json(visita);
 }));
 app.put('/api/visitas/:id/fecha', wrap(async (req, res) => {
@@ -252,6 +253,18 @@ app.post('/api/clientes/:id/visitas', wrap(async (req, res) => {
     VALUES ($1,COALESCE($2,CURRENT_DATE),$3,$4,$5,$6,$7,COALESCE($8,'preventiva'),$9,$10,$11) RETURNING *`,
     [req.params.id, b.fecha || null, b.tecnico_id || null, b.situacion_inicial, b.acciones, b.situacion_final, b.asignada_por || req.user?.nombre || req.user?.username || null, b.tipo || null, b.contrato_id || null, b.ticket_id || null, b.fecha_max_resolucion || null]);
   await setVisitaTecnicos(r.rows[0].id, b.tecnico_ids !== undefined ? b.tecnico_ids : (b.tecnico_id ? [b.tecnico_id] : []));
+  // Jornadas (visitas de varios dias). Si no se envian dias, se crea una jornada del dia de la visita.
+  const vid = r.rows[0].id;
+  let dias = Array.isArray(b.dias) ? b.dias.filter(Boolean).map(d => String(d).slice(0, 10)) : [];
+  if (!dias.length) {
+    const f0 = (b.fecha ? String(b.fecha).slice(0, 10) : null) || (r.rows[0].fecha ? new Date(r.rows[0].fecha).toISOString().slice(0, 10) : null);
+    if (f0) dias = [f0];
+  }
+  dias = [...new Set(dias)].sort();
+  if (dias.length) {
+    await q('UPDATE visitas SET fecha=$2, fecha_fin=$3, multidia=$4 WHERE id=$1', [vid, dias[0], dias[dias.length - 1], dias.length > 1]);
+    for (let i = 0; i < dias.length; i++) await q("INSERT INTO visita_jornadas (visita_id,fecha,orden,tecnico_id,estado) VALUES ($1,$2,$3,$4,'planificada')", [vid, dias[i], i + 1, b.tecnico_id || null]);
+  }
   try {
     const c = await q('SELECT nombre FROM clientes WHERE id=$1', [req.params.id]);
     notify({ type: 'visita', icon: 'calendar', text: 'Nueva visita agendada: ' + (c.rows[0]?.nombre || 'cliente'), url: '/visitas/' + r.rows[0].id });

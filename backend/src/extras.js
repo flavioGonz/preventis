@@ -184,6 +184,22 @@ export function mountExtras(app, q) {
       CREATE TABLE IF NOT EXISTS posiciones (id serial PRIMARY KEY, usuario text, nombre text, rol text, lat double precision, lon double precision, accuracy real, ts timestamptz DEFAULT now());
       CREATE INDEX IF NOT EXISTS idx_posiciones_ts ON posiciones(ts DESC);`))
     .then(() => q("ALTER TYPE frecuencia_visita ADD VALUE IF NOT EXISTS 'sin'").catch(() => {}))
+    .then(() => q(`
+      ALTER TABLE visitas ADD COLUMN IF NOT EXISTS fecha_fin date;
+      ALTER TABLE visitas ADD COLUMN IF NOT EXISTS multidia boolean DEFAULT false;
+      CREATE TABLE IF NOT EXISTS visita_jornadas (
+        id serial PRIMARY KEY,
+        visita_id int NOT NULL REFERENCES visitas(id) ON DELETE CASCADE,
+        fecha date NOT NULL,
+        orden int NOT NULL DEFAULT 1,
+        estado text NOT NULL DEFAULT 'planificada',
+        tecnico_id int REFERENCES tecnicos(id) ON DELETE SET NULL,
+        hora_inicio timestamptz,
+        hora_fin timestamptz,
+        nota text,
+        created_at timestamptz DEFAULT now());
+      CREATE INDEX IF NOT EXISTS idx_vjorn_visita ON visita_jornadas(visita_id);
+      CREATE INDEX IF NOT EXISTS idx_vjorn_fecha ON visita_jornadas(fecha);`))
     .catch(e => console.error('migr extras:', e.message));
 
   // ---- Auditoria: registra toda mutacion /api con el usuario ----
@@ -713,6 +729,57 @@ export function mountExtras(app, q) {
     res.json(r.rows[0]);
   }));
 
+  // ---------------- Jornadas (visitas de varios dias) ----------------
+  const listarJornadas = (id) => q('SELECT j.*, t.nombre AS tecnico FROM visita_jornadas j LEFT JOIN tecnicos t ON t.id=j.tecnico_id WHERE j.visita_id=$1 ORDER BY j.orden, j.fecha, j.id', [id]).then(r => r.rows);
+
+  app.get('/api/visitas/:id/jornadas', wrap(async (req, res) => {
+    res.json(await listarJornadas(req.params.id));
+  }));
+
+  app.post('/api/visitas/:id/jornadas/:jid/iniciar', wrap(async (req, res) => {
+    const { lat, lon } = req.body || {};
+    const j = (await q("UPDATE visita_jornadas SET estado='en_curso', hora_inicio=COALESCE(hora_inicio, now()) WHERE id=$1 AND visita_id=$2 RETURNING *", [req.params.jid, req.params.id])).rows[0];
+    if (!j) return res.status(404).json({ error: 'Jornada no encontrada' });
+    await q("UPDATE visitas SET estado='en_curso', hora_entrada=COALESCE(hora_entrada, now()), entrada_lat=COALESCE($2,entrada_lat), entrada_lon=COALESCE($3,entrada_lon), cerrada=false WHERE id=$1", [req.params.id, lat ?? null, lon ?? null]);
+    res.json(j);
+  }));
+
+  app.post('/api/visitas/:id/jornadas/:jid/pausar', wrap(async (req, res) => {
+    // Cierra la jornada del dia (continua otro dia); la visita sigue abierta
+    const j = (await q("UPDATE visita_jornadas SET estado='completada', hora_fin=COALESCE(hora_fin, now()), nota=COALESCE($3,nota) WHERE id=$1 AND visita_id=$2 RETURNING *", [req.params.jid, req.params.id, (req.body || {}).nota ?? null])).rows[0];
+    if (!j) return res.status(404).json({ error: 'Jornada no encontrada' });
+    res.json(j);
+  }));
+
+  app.put('/api/visitas/:id/jornadas/:jid', wrap(async (req, res) => {
+    const b = req.body || {};
+    const j = (await q("UPDATE visita_jornadas SET tecnico_id=$3, nota=COALESCE($4,nota), fecha=COALESCE($5,fecha), estado=COALESCE($6,estado) WHERE id=$1 AND visita_id=$2 RETURNING *", [req.params.jid, req.params.id, b.tecnico_id === 0 ? null : (b.tecnico_id ?? null), b.nota ?? null, b.fecha ?? null, b.estado ?? null])).rows[0];
+    if (!j) return res.status(404).json({ error: 'Jornada no encontrada' });
+    await recomputeRango(req.params.id);
+    res.json(j);
+  }));
+
+  app.post('/api/visitas/:id/jornadas', wrap(async (req, res) => {
+    const b = req.body || {};
+    if (!b.fecha) return res.status(400).json({ error: 'Falta la fecha' });
+    const ord = (await q('SELECT COALESCE(max(orden),0)+1 AS o FROM visita_jornadas WHERE visita_id=$1', [req.params.id])).rows[0].o;
+    const j = (await q("INSERT INTO visita_jornadas (visita_id,fecha,orden,tecnico_id,estado) VALUES ($1,$2,$3,$4,'planificada') RETURNING *", [req.params.id, String(b.fecha).slice(0, 10), ord, b.tecnico_id || null])).rows[0];
+    await recomputeRango(req.params.id);
+    res.status(201).json(j);
+  }));
+
+  app.delete('/api/visitas/:id/jornadas/:jid', wrap(async (req, res) => {
+    await q('DELETE FROM visita_jornadas WHERE id=$1 AND visita_id=$2', [req.params.jid, req.params.id]);
+    await recomputeRango(req.params.id);
+    res.json({ ok: true });
+  }));
+
+  // Recalcula fecha/fecha_fin/multidia de la visita a partir de sus jornadas
+  async function recomputeRango(id) {
+    const r = (await q('SELECT min(fecha) AS ini, max(fecha) AS fin, count(*)::int AS n FROM visita_jornadas WHERE visita_id=$1', [id])).rows[0];
+    if (r && r.n > 0) await q('UPDATE visitas SET fecha=$2, fecha_fin=$3, multidia=$4 WHERE id=$1', [id, r.ini, r.fin, r.n > 1]);
+  }
+
   app.post('/api/visitas/orden', authMiddleware, wrap(async (req, res) => {
     const ids = (req.body || {}).ids || [];
     for (let i = 0; i < ids.length; i++) await q('UPDATE visitas SET orden=$1 WHERE id=$2', [i, ids[i]]);
@@ -1185,10 +1252,11 @@ export function mountExtras(app, q) {
     if (req.query.hasta) { params.push(req.query.hasta); cond.push('v.fecha<=$' + params.length); }
     const where = cond.length ? 'WHERE ' + cond.join(' AND ') : '';
     const r = await q(`
-      SELECT v.id, v.fecha, v.estado, v.cerrada, v.hora_entrada, v.hora_salida, v.cliente_id, v.asignada_por, v.tipo, v.orden, v.hora, c.nombre AS cliente,
+      SELECT v.id, v.fecha, v.fecha_fin, v.multidia, v.estado, v.cerrada, v.hora_entrada, v.hora_salida, v.cliente_id, v.asignada_por, v.tipo, v.orden, v.hora, c.nombre AS cliente,
              COALESCE((SELECT string_agg(t2.nombre, ', ' ORDER BY t2.nombre) FROM visita_tecnicos vt JOIN tecnicos t2 ON t2.id=vt.tecnico_id WHERE vt.visita_id=v.id), t.nombre) AS tecnico,
              (SELECT array_agg(vt.tecnico_id ORDER BY vt.tecnico_id) FROM visita_tecnicos vt WHERE vt.visita_id=v.id) AS tecnico_ids,
-             (SELECT count(*) FROM pruebas p WHERE p.visita_id=v.id)::int AS pruebas
+             (SELECT count(*) FROM pruebas p WHERE p.visita_id=v.id)::int AS pruebas,
+             (SELECT json_agg(json_build_object('id',j.id,'fecha',j.fecha,'orden',j.orden,'estado',j.estado) ORDER BY j.orden) FROM visita_jornadas j WHERE j.visita_id=v.id) AS jornadas
       FROM visitas v LEFT JOIN clientes c ON c.id=v.cliente_id LEFT JOIN tecnicos t ON t.id=v.tecnico_id
       ${where} ORDER BY v.fecha DESC, v.id DESC LIMIT 500`, params);
     res.json(r.rows);

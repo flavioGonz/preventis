@@ -197,7 +197,7 @@ function RepVisitas() {
 
       {rows === null ? <Loading /> : shown.length === 0 ? <Empty icon="clipboard" title="Sin visitas">No hay visitas que coincidan con los filtros.</Empty> :
         <div className="card pad-sm"><div className="tablewrap"><table className="table">
-          <thead><tr><th>Fecha visita</th><th>Cliente</th><th>Tipo</th><th>Ticket</th><th>Tecnico(s)</th><th>Estado</th><th>Fecha max. resol.</th><th>Ejecucion</th><th style={{ textAlign: 'right' }}>Pruebas</th><th style={{ textAlign: 'right' }}>Fallas</th></tr></thead>
+          <thead><tr><th>Fecha visita</th><th>Cliente</th><th>Tipo</th><th>Ticket</th><th>Tecnico(s)</th><th>Estado</th><th>Fecha max. resol.</th><th style={{ textAlign: 'right' }}>Dias</th><th>Trabajado</th><th>Ejecucion</th><th style={{ textAlign: 'right' }}>Pruebas</th><th style={{ textAlign: 'right' }}>Fallas</th></tr></thead>
           <tbody>{shown.map(r => (
             <tr key={r.id} style={{ cursor: 'pointer' }} onClick={() => nav('/visitas/' + r.id)}>
               <td className="mono">{fdate(r.fecha)}</td>
@@ -207,6 +207,8 @@ function RepVisitas() {
               <td>{r.tecnico || '-'}</td>
               <td><Badge map={VEST} v={r.estado} /></td>
               <td className="mono">{fdate(r.fecha_max_resolucion)}</td>
+              <td className="mono" style={{ textAlign: 'right' }}>{r.multidia ? <span className="badge info" title="dias trabajados / planificados">{r.dias_trab}/{r.dias_plan}</span> : <span className="subtle">-</span>}</td>
+              <td className="mono">{dur(r.trabajado_min)}</td>
               <td className="mono">{dur(r.duracion_min)}</td>
               <td style={{ textAlign: 'right' }}>{r.pruebas}</td>
               <td style={{ textAlign: 'right' }}>{Number(r.fallas) > 0 ? <span className="badge falla">{r.fallas}</span> : <span className="subtle">0</span>}</td>
