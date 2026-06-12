@@ -2,10 +2,10 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './icons.jsx';
 
-export function Modal({ title, subtitle, children, onClose, footer }) {
+export function Modal({ title, subtitle, children, onClose, footer, size }) {
   const node = (
     <div className="modal-bg">
-      <div className="modal">
+      <div className={'modal' + (size ? ' modal-' + size : '')}>
         <div className="modal-head">
           <div>
             <h3>{title}</h3>

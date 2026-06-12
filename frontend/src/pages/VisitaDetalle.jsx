@@ -637,7 +637,7 @@ function CerrarVisitaModal({ visitaId, visita, onClose, onClosed }) {
   const [tel, setTel] = useState('');
   useEffect(() => { api.get('/api/visitas/' + visitaId + '/checklist').then(setChk); }, [visitaId]);
   useEffect(() => { if (visita?.cliente_id) api.get('/api/clientes/' + visita.cliente_id).then(c => setTel(c.telefono || '')).catch(() => {}); }, [visita?.cliente_id]);
-  const ok = chk && chk.tecnico && chk.situacion_final && chk.firma;
+  const ok = chk && chk.tecnico && chk.situacion_final && chk.firma && chk.fotos;
   const cerrar = async () => {
     setBusy(true);
     try { const g = await getGPS(); await api.post('/api/visitas/' + visitaId + '/cerrar', { lat: g?.lat, lon: g?.lon, facturar }); toast.ok('Visita cerrada'); setCerrada(true); }
@@ -683,6 +683,7 @@ function CerrarVisitaModal({ visitaId, visita, onClose, onClosed }) {
         <Item done={chk.tecnico} label="Tecnico asignado" />
         <Item done={chk.situacion_final} label="Situacion final completada" />
         <Item done={chk.firma} label="Firma del cliente" />
+        <Item done={chk.fotos} label="Al menos una foto adjunta" />
         <Item done={!chk.pendientes} warn={!!chk.pendientes}
           label={chk.pendientes ? (chk.pendientes + ' de ' + chk.total + ' equipos sin probar (opcional)') : 'Todos los equipos probados'} />
         {!ok && <div className="muted" style={{ fontSize: 12.5, marginTop: 6 }}>Completa los items en rojo para poder cerrar.</div>}

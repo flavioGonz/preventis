@@ -691,7 +691,8 @@ export function mountExtras(app, q) {
     if (!v) return res.status(404).json({ error: 'No encontrada' });
     const pend = (await q("SELECT count(*)::int c FROM equipos e WHERE e.cliente_id=$1 AND e.activo AND NOT EXISTS (SELECT 1 FROM pruebas p WHERE p.visita_id=$2 AND p.equipo_id=e.id)", [v.cliente_id, req.params.id])).rows[0].c;
     const tot = (await q('SELECT count(*)::int c FROM equipos WHERE cliente_id=$1 AND activo', [v.cliente_id])).rows[0].c;
-    res.json({ tecnico: !!v.tecnico_id, situacion_final: !!(v.situacion_final && String(v.situacion_final).trim()), firma: !!v.firma_path, pendientes: pend, total: tot, estado: v.estado, hora_entrada: v.hora_entrada, hora_salida: v.hora_salida });
+    const fotos = (await q("SELECT (EXISTS(SELECT 1 FROM visita_archivos WHERE visita_id=$1 AND tipo='foto') OR EXISTS(SELECT 1 FROM prueba_fotos pf JOIN pruebas p ON p.id=pf.prueba_id WHERE p.visita_id=$1)) AS hay", [req.params.id])).rows[0].hay;
+    res.json({ tecnico: !!v.tecnico_id, situacion_final: !!(v.situacion_final && String(v.situacion_final).trim()), firma: !!v.firma_path, fotos: !!fotos, pendientes: pend, total: tot, estado: v.estado, hora_entrada: v.hora_entrada, hora_salida: v.hora_salida });
   }));
 
   app.post('/api/visitas/:id/cerrar', wrap(async (req, res) => {
@@ -702,6 +703,8 @@ export function mountExtras(app, q) {
     if (!v.tecnico_id) faltan.push('Asignar tecnico');
     if (!v.situacion_final || !String(v.situacion_final).trim()) faltan.push('Completar situacion final');
     if (!v.firma_path) faltan.push('Firma del cliente');
+    const hayFoto = (await q("SELECT (EXISTS(SELECT 1 FROM visita_archivos WHERE visita_id=$1 AND tipo='foto') OR EXISTS(SELECT 1 FROM prueba_fotos pf JOIN pruebas p ON p.id=pf.prueba_id WHERE p.visita_id=$1)) AS hay", [req.params.id])).rows[0].hay;
+    if (!hayFoto) faltan.push('Adjuntar al menos una foto');
     const pend = (await q("SELECT count(*)::int c FROM equipos e WHERE e.cliente_id=$1 AND e.activo AND NOT EXISTS (SELECT 1 FROM pruebas p WHERE p.visita_id=$2 AND p.equipo_id=e.id)", [v.cliente_id, req.params.id])).rows[0].c;
     if (requireEquipos && pend > 0) faltan.push(pend + ' equipo(s) sin probar');
     if (faltan.length) return res.status(400).json({ error: 'Faltan requisitos para cerrar', faltan, pendientes: pend });

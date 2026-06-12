@@ -383,13 +383,14 @@ function Equipos({ clienteId, user }) {
 function EquipoModal({ equipo, sistemas, tipos, estandar = [], onClose, onSave }) {
   const [f, setF] = useState(equipo);
   const set = (k, v) => setF({ ...f, [k]: v });
+  const L = (icon, txt) => <span className="flabel"><Icon name={icon} size={13} />{txt}</span>;
   return (
-    <Modal title={f.id ? 'Editar equipo' : 'Nuevo equipo'} subtitle="Ningun campo es unico; podes repetir valores" onClose={onClose}
+    <Modal size="wide" title={f.id ? 'Editar equipo' : 'Nuevo equipo'} subtitle="Ningun campo es unico; podes repetir valores" onClose={onClose}
       footer={<>
         <button className="btn ghost" onClick={onClose}>Cancelar</button>
         <button className="btn" onClick={() => onSave(f)}><Icon name="check" size={16} />Guardar</button>
       </>}>
-      {estandar.length > 0 && <Field label="Buscar modelo estandar (de Configuracion)">
+      {estandar.length > 0 && <Field label={L('search', 'Buscar modelo estandar (de Configuracion)')}>
         <input list="est-models" placeholder="Escribi para buscar y autocompletar..." onChange={e => {
           const m = estandar.find(x => x.nombre === e.target.value);
           if (m) { const tm = tipos.find(t => (t.nombre || '').toLowerCase() === (m.tipo || '').toLowerCase());
@@ -397,30 +398,35 @@ function EquipoModal({ equipo, sistemas, tipos, estandar = [], onClose, onSave }
         }} />
         <datalist id="est-models">{estandar.map(m => <option key={m.id} value={m.nombre}>{[m.marca, m.modelo].filter(Boolean).join(' ')}</option>)}</datalist>
       </Field>}
-      <div className="grid2">
-        <Field label="Sistema">
-          <select value={f.sistema_id || ''} onChange={e => set('sistema_id', e.target.value)}>
-            <option value="">-</option>{sistemas.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-          </select>
-        </Field>
-        <Field label="Tipo de elemento">
-          <select value={f.tipo_elemento_id || ''} onChange={e => set('tipo_elemento_id', e.target.value)}>
-            <option value="">-</option>{tipos.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-          </select>
-        </Field>
-        <Field label="Etiqueta"><input value={f.etiqueta || ''} onChange={e => set('etiqueta', e.target.value)} /></Field>
-        <Field label="Direccion"><input value={f.direccion || ''} onChange={e => set('direccion', e.target.value)} /></Field>
-        <Field label="Grupo"><input value={f.grupo || ''} onChange={e => set('grupo', e.target.value)} /></Field>
-        <Field label="Subgrupo"><input value={f.subgrupo || ''} onChange={e => set('subgrupo', e.target.value)} /></Field>
-        <Field label="Modelo"><input value={f.modelo || ''} onChange={e => set('modelo', e.target.value)} /></Field>
-      </div>
-      <div className="brd-sec" style={{ marginTop: 6 }}>
-        <div className="brd-sec-h"><Icon name="settings" size={15} />Credenciales de acceso</div>
-        <div className="grid2">
-          <Field label="Usuario"><input value={f.cred_usuario || ''} onChange={e => set('cred_usuario', e.target.value)} /></Field>
-          <Field label="Contrasena"><input type="password" value={f.cred_password || ''} placeholder={f.cred_has_pass ? 'Dejar vacio para no cambiar' : ''} onChange={e => set('cred_password', e.target.value)} /></Field>
+      <div className="eqm-cols">
+        <div className="eqm-pane">
+          <div className="eqm-pane-h"><Icon name="box" size={15} />Datos del equipo</div>
+          <div className="grid2">
+            <Field label={L('box', 'Sistema')}>
+              <select value={f.sistema_id || ''} onChange={e => set('sistema_id', e.target.value)}>
+                <option value="">-</option>{sistemas.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+              </select>
+            </Field>
+            <Field label={L('list', 'Tipo de elemento')}>
+              <select value={f.tipo_elemento_id || ''} onChange={e => set('tipo_elemento_id', e.target.value)}>
+                <option value="">-</option>{tipos.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+              </select>
+            </Field>
+            <Field label={L('star', 'Etiqueta')}><input value={f.etiqueta || ''} onChange={e => set('etiqueta', e.target.value)} /></Field>
+            <Field label={L('pin', 'Direccion')}><input value={f.direccion || ''} onChange={e => set('direccion', e.target.value)} /></Field>
+            <Field label={L('building', 'Grupo')}><input value={f.grupo || ''} onChange={e => set('grupo', e.target.value)} /></Field>
+            <Field label={L('building', 'Subgrupo')}><input value={f.subgrupo || ''} onChange={e => set('subgrupo', e.target.value)} /></Field>
+            <Field label={L('wrench', 'Modelo')}><input value={f.modelo || ''} onChange={e => set('modelo', e.target.value)} /></Field>
+          </div>
         </div>
-        <Field label={<span className="flabel"><Icon name="line" size={13} />URL / acceso de conexion</span>}><input value={f.cred_url || ''} placeholder="192.168.1.50 o http://..." onChange={e => set('cred_url', e.target.value)} /></Field>
+        <div className="eqm-pane">
+          <div className="brd-sec" style={{ marginBottom: 0 }}>
+            <div className="brd-sec-h"><Icon name="lock" size={15} />Credenciales de acceso</div>
+            <Field label={L('users', 'Usuario')}><input value={f.cred_usuario || ''} onChange={e => set('cred_usuario', e.target.value)} /></Field>
+            <Field label={L('lock', 'Contrasena')}><input type="password" value={f.cred_password || ''} placeholder={f.cred_has_pass ? 'Dejar vacio para no cambiar' : ''} onChange={e => set('cred_password', e.target.value)} /></Field>
+            <Field label={L('external', 'URL / acceso de conexion')}><input value={f.cred_url || ''} placeholder="192.168.1.50 o http://..." onChange={e => set('cred_url', e.target.value)} /></Field>
+          </div>
+        </div>
       </div>
     </Modal>
   );

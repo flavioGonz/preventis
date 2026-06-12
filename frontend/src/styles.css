@@ -1913,3 +1913,14 @@ input[type="date"], input[type="datetime-local"], input[type="time"] { max-width
 @keyframes otaShimmer{ 0%{ transform:translateX(-100%); } 100%{ transform:translateX(100%); } }
 @keyframes otaPop{ from{ transform:scale(.85);opacity:0; } to{ transform:scale(1);opacity:1; } }
 
+/* ===== Modal Nuevo equipo: dos columnas (datos / credenciales) ===== */
+.modal.modal-wide { max-width: 780px; }
+@media (max-width:780px){ .modal.modal-wide { max-width: 580px; } }
+.eqm-cols { display:grid; grid-template-columns: 1.4fr 1fr; gap:16px; align-items:start; }
+@media (max-width:680px){ .eqm-cols { grid-template-columns:1fr; } }
+.eqm-pane-h { display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--brand-600); margin-bottom:12px; }
+.eqm-pane-h svg { color:var(--brand-600); }
+.eqm-cols .brd-sec { height:100%; }
+.eqm-cols .brd-sec .field { margin-bottom:10px; }
+.eqm-cols .brd-sec .field:last-child { margin-bottom:0; }
+
