@@ -144,14 +144,34 @@ export async function processCommand(q, texto, sender = {}) {
   }
   if (/^(mi\s*agenda|agenda)/.test(cmd)) {
     const mia = /^mi/.test(cmd) && sender.tecnico_id;
-    const cond = mia ? ' AND EXISTS (SELECT 1 FROM visita_tecnicos vt WHERE vt.visita_id=v.id AND vt.tecnico_id=' + Number(sender.tecnico_id) + ')' : '';
-    const rows = await one(q, `SELECT v.fecha, v.hora, c.nombre AS cliente, COALESCE((SELECT string_agg(t2.nombre, ', ') FROM visita_tecnicos vt JOIN tecnicos t2 ON t2.id=vt.tecnico_id WHERE vt.visita_id=v.id), '') AS tecnicos FROM visitas v JOIN clientes c ON c.id=v.cliente_id WHERE v.estado IN ('programada','en_curso') AND v.fecha BETWEEN CURRENT_DATE AND CURRENT_DATE+6${cond} ORDER BY v.fecha, COALESCE(v.orden,999)`);
+    const tid = Number(sender.tecnico_id) || 0;
+    // Multi-dia: una linea por jornada (dia k/N). "mi agenda" considera el tecnico de la visita o de la jornada.
+    const rows = await one(q, `
+      WITH dias AS (
+        SELECT j.fecha, v.hora, v.id AS vid, v.orden, c.nombre AS cliente,
+          (row_number() OVER (PARTITION BY v.id ORDER BY j.orden))::int AS dnum,
+          (count(*) OVER (PARTITION BY v.id))::int AS dtot,
+          COALESCE(j.tecnico_id, v.tecnico_id) AS jtec
+        FROM visitas v JOIN clientes c ON c.id=v.cliente_id
+        JOIN visita_jornadas j ON j.visita_id=v.id AND j.estado <> 'cancelada'
+        WHERE v.multidia AND v.estado IN ('programada','en_curso')
+        UNION ALL
+        SELECT v.fecha, v.hora, v.id, v.orden, c.nombre, 0, 0, v.tecnico_id
+        FROM visitas v JOIN clientes c ON c.id=v.cliente_id
+        WHERE COALESCE(v.multidia,false)=false AND v.estado IN ('programada','en_curso')
+      )
+      SELECT d.fecha, d.hora, d.cliente, d.dnum, d.dtot,
+        COALESCE((SELECT string_agg(t2.nombre, ', ') FROM visita_tecnicos vt JOIN tecnicos t2 ON t2.id=vt.tecnico_id WHERE vt.visita_id=d.vid), '') AS tecnicos
+      FROM dias d
+      WHERE d.fecha BETWEEN CURRENT_DATE AND CURRENT_DATE+6
+      ${mia ? `AND (d.jtec=${tid} OR EXISTS (SELECT 1 FROM visita_tecnicos vt WHERE vt.visita_id=d.vid AND vt.tecnico_id=${tid}))` : ''}
+      ORDER BY d.fecha, COALESCE(d.orden,999)`);
     if (!rows.length) return (mia ? 'No tenés' : 'Sin') + ' visitas esta semana ✅';
-    return '📅 *Agenda' + (mia ? ' (' + (sender.nombre || 'vos') + ')' : ' de la semana') + '*\n' + rows.map(r => '• ' + fechaUY(r.fecha) + (r.hora ? ' ' + String(r.hora).slice(0, 5) : '') + ' — ' + r.cliente + (r.tecnicos && !mia ? ' (' + r.tecnicos + ')' : '')).join('\n');
+    return '📅 *Agenda' + (mia ? ' (' + (sender.nombre || 'vos') + ')' : ' de la semana') + '*\n' + rows.map(r => '• ' + fechaUY(r.fecha) + (r.hora ? ' ' + String(r.hora).slice(0, 5) : '') + ' — ' + r.cliente + (r.dtot > 1 ? ' _(día ' + r.dnum + '/' + r.dtot + ')_' : '') + (r.tecnicos && !mia ? ' (' + r.tecnicos + ')' : '')).join('\n');
   }
   if (/^visitas/.test(cmd)) {
-    const rows = await one(q, "SELECT v.fecha, c.nombre AS cliente FROM visitas v JOIN clientes c ON c.id=v.cliente_id WHERE v.estado IN ('programada','en_curso') ORDER BY v.fecha LIMIT 8");
-    return rows.length ? '📅 *Próximas visitas*\n' + rows.map(r => '• ' + fechaUY(r.fecha) + ' — ' + r.cliente).join('\n') : 'Sin visitas pendientes ✅';
+    const rows = await one(q, "SELECT v.fecha, v.fecha_fin, v.multidia, c.nombre AS cliente, (SELECT count(*) FROM visita_jornadas j WHERE j.visita_id=v.id AND j.estado <> 'cancelada')::int AS dias FROM visitas v JOIN clientes c ON c.id=v.cliente_id WHERE v.estado IN ('programada','en_curso') ORDER BY v.fecha LIMIT 8");
+    return rows.length ? '📅 *Próximas visitas*\n' + rows.map(r => '• ' + fechaUY(r.fecha) + (r.multidia && r.fecha_fin ? ' → ' + fechaUY(r.fecha_fin) + ' _(' + r.dias + ' días)_' : '') + ' — ' + r.cliente).join('\n') : 'Sin visitas pendientes ✅';
   }
   if (/^fallas/.test(cmd)) {
     const rows = await one(q, "SELECT e.etiqueta, c.nombre AS cliente FROM v_ultima_prueba u JOIN equipos e ON e.id=u.equipo_id JOIN clientes c ON c.id=e.cliente_id WHERE u.ultima_falla AND e.activo LIMIT 8");
