@@ -269,12 +269,13 @@ export default function TicketDetalle() {
           {visitas.length > 0 && <div className="card pad-sm">
             <div className="tkd-side-head"><Icon name="calendar" size={14} />Visitas asociadas</div>
             <div className="stack" style={{ gap: 4 }}>
-              {visitas.map(v => { const VEST = { programada: ['gris', 'Programada'], en_curso: ['info', 'En curso'], cerrada: ['ok', 'Cerrada'] }; const [tone, lbl] = VEST[v.estado] || VEST.programada; return (
+              {visitas.map(v => { const VEST = { programada: ['gris', 'Programada'], en_curso: ['info', 'En curso'], cerrada: ['ok', 'Cerrada'], cancelada: ['falla', 'Cancelada'] }; const [tone, lbl] = VEST[v.estado] || VEST.programada; const js = (v.jornadas || []).filter(j => j.estado !== 'cancelada'); const jdone = js.filter(j => j.estado === 'completada').length; const fd = (d) => new Date(d).toLocaleDateString('es-UY', { day: '2-digit', month: '2-digit' }); return (
                 <Link key={v.id} to={'/visitas/' + v.id} className="tkd-visita">
                   <span className="ico" style={{ width: 28, height: 28, background: 'var(--brand-soft)', color: 'var(--brand-600)' }}><Icon name="calendar" size={14} /></span>
                   <div className="grow" style={{ minWidth: 0 }}>
-                    <b style={{ fontSize: 13 }}>V-{String(v.id).padStart(5, '0')}{v.tipo ? ' · ' + (v.tipo === 'correctiva' ? 'Correctiva' : 'Preventiva') : ''}</b>
-                    <div className="subtle" style={{ fontSize: 11.5 }}>{new Date(v.fecha).toLocaleDateString('es-UY')}{v.tecnico ? ' · ' + v.tecnico : ''}</div>
+                    <b style={{ fontSize: 13 }}>V-{String(v.id).padStart(5, '0')}{v.tipo ? ' · ' + (v.tipo === 'correctiva' ? 'Correctiva' : 'Preventiva') : ''}{v.multidia ? ' · ' + js.length + ' dias' : ''}</b>
+                    <div className="subtle" style={{ fontSize: 11.5 }}>{v.multidia && v.fecha_fin ? (fd(v.fecha) + ' → ' + fd(v.fecha_fin)) : new Date(v.fecha).toLocaleDateString('es-UY')}{v.tecnico ? ' · ' + v.tecnico : ''}</div>
+                    {v.multidia && (v.jornadas || []).length > 0 && <div className="tkd-dias">{(v.jornadas || []).map(j => <span key={j.orden} className={'tkd-dia j-' + j.estado} title={new Date(j.fecha).toLocaleDateString('es-UY') + ' · ' + j.estado}>D{j.orden}</span>)}<span className="tkd-dias-n">{jdone}/{js.length}</span></div>}
                   </div>
                   <span className={'badge ' + tone}><span className="dot" />{lbl}</span>
                 </Link>

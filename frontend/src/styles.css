@@ -1950,3 +1950,14 @@ input[type="date"], input[type="datetime-local"], input[type="time"] { max-width
 .jor-tec{ height:34px; font-size:13px; padding:4px 8px; min-width:130px; }
 @media (max-width:640px){ .jor-item{ flex-wrap:wrap; } .jor-act{ width:100%; } .jor-tec{ flex:1; } }
 
+/* ===== Cancelar jornada / dias del ticket ===== */
+.jor-item.cancelada{ opacity:.62; }
+.jor-item.cancelada .jor-top b{ text-decoration:line-through; }
+.jor-item.cancelada .jor-ic{ background:#fee2e2; color:#dc2626; }
+.tkd-dias{ display:flex; flex-wrap:wrap; gap:4px; align-items:center; margin-top:5px; }
+.tkd-dia{ font-size:10px; font-weight:700; padding:1px 5px; border-radius:5px; background:var(--surface-2); color:var(--muted); border:1px solid var(--border,#e3e8ef); }
+.tkd-dia.j-en_curso{ background:var(--brand-soft); color:var(--brand-700); border-color:var(--brand-200); }
+.tkd-dia.j-completada{ background:#dcfce7; color:#16a34a; border-color:#bbf7d0; }
+.tkd-dia.j-cancelada{ background:#fee2e2; color:#dc2626; border-color:#fecaca; text-decoration:line-through; }
+.tkd-dias-n{ font-size:10.5px; color:var(--muted); margin-left:2px; }
+

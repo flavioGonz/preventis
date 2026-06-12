@@ -204,6 +204,7 @@ export default function Visitas() {
         <Calendario visitas={items || []} tecnicos={tecnicos} onOpen={(id) => nav('/visitas/' + id)} onReschedule={resched}
           onDelete={async (id) => { if (!confirm('Eliminar esta visita y sus datos? Para auditoria es mejor cancelarla.')) return; try { await api.del('/api/visitas/' + id); toast.ok('Visita eliminada'); load(); } catch (e) { toast.err(e.message); } }}
           onCancelar={async (v) => { const m = (prompt('Motivo de la cancelacion:', '') || '').trim(); if (!m) return; try { await api.post('/api/visitas/' + v.id + '/cancelar', { motivo: m }); toast.ok('Visita cancelada'); load(); } catch (e) { toast.err(e.message); } }}
+          onCancelarJornada={async (v) => { const m = (prompt('Motivo de cancelar el dia ' + (v._dia || '') + ':', '') || '').trim(); try { await api.post('/api/visitas/' + v.id + '/jornadas/' + v._jid + '/cancelar', { motivo: m }); toast.ok('Dia cancelado'); load(); } catch (e) { toast.err(e.message); } }}
           onReorder={async (ids) => { try { await api.post('/api/visitas/orden', { ids }); load(); } catch (e) { toast.err(e.message); } }} onReassign={async (id, fecha, tecnico_id) => { try { await api.put('/api/visitas/' + id + '/fecha', { fecha, tecnico_id }); toast.ok('Visita reprogramada'); load(); } catch (e) { toast.err(e.message); } }} onDayNew={(d) => setNuevo({ cliente_id: '', fecha: d, tecnico_id: '', tipo: 'preventiva', asignada_por: (getUser()?.nombre || getUser()?.username || '') })}
           onCreate={async (cid, fecha, tecnico_id) => { try { await api.post('/api/clientes/' + cid + '/visitas', { fecha, tecnico_id: tecnico_id || null, tipo: 'preventiva', asignada_por: getUser()?.nombre || getUser()?.username || '' }); toast.ok('Visita agendada'); load(); } catch (e) { toast.err(e.message); } }}
           onRepeat={async (v, n) => { try { const ids = v.tecnico_ids || []; for (let i = 1; i <= n; i++) { const d = new Date(v.fecha); d.setMonth(d.getMonth() + i); await api.post('/api/clientes/' + v.cliente_id + '/visitas', { fecha: d.toISOString().slice(0, 10), tecnico_ids: ids, tecnico_id: ids[0] || null, tipo: v.tipo || 'preventiva' }); } toast.ok(n + ' visitas creadas'); load(); } catch (e) { toast.err(e.message); } }}
@@ -345,7 +346,7 @@ function CalFeedModal({ onClose }) {
   );
 }
 
-function Calendario({ visitas, tecnicos = [], onOpen, onReschedule, onReassign, onDayNew, onDelete, onCancelar, onReorder, vencimientos = [], onCreate, onRepeat, onSetHora }) {
+function Calendario({ visitas, tecnicos = [], onOpen, onReschedule, onReassign, onDayNew, onDelete, onCancelar, onCancelarJornada, onReorder, vencimientos = [], onCreate, onRepeat, onSetHora }) {
   const [feedOpen, setFeedOpen] = useState(false);
   const esVenc = (v) => v.estado === 'programada' && (v.fecha || '').slice(0, 10) < _ymd(new Date());
   const [ctx, setCtx] = useState(null);
@@ -359,8 +360,9 @@ function Calendario({ visitas, tecnicos = [], onOpen, onReschedule, onReassign, 
   const eventos = [];
   for (const v of visitas) {
     if (v.multidia && Array.isArray(v.jornadas) && v.jornadas.length) {
-      const tot = v.jornadas.length;
-      for (const j of v.jornadas) eventos.push({ ...v, fecha: (j.fecha || '').slice(0, 10), _dia: j.orden, _diaTot: tot, _jestado: j.estado });
+      const activos = v.jornadas.filter(j => j.estado !== 'cancelada');
+      const tot = activos.length;
+      activos.forEach((j, idx) => eventos.push({ ...v, fecha: (j.fecha || '').slice(0, 10), _dia: idx + 1, _diaTot: tot, _jid: j.id, _jorden: j.orden, _jestado: j.estado }));
     } else eventos.push(v);
   }
   const byDay = {};
@@ -517,7 +519,8 @@ function Calendario({ visitas, tecnicos = [], onOpen, onReschedule, onReassign, 
             <button onClick={async () => { try { await api.post('/api/visitas/' + ctx.v.id + '/reabrir', {}); toast.ok('Reabierta'); } catch (e) { toast.err(e.message); } setCtx(null); }}><Icon name="history" size={15} />Reabrir</button> : null}
           {esVenc(ctx.v) && <button onClick={() => { onReschedule(ctx.v.id, _ymd(new Date())); setCtx(null); }}><Icon name="calendar" size={15} />Mover a hoy</button>}
           <button onClick={() => { const n = parseInt(prompt('Repetir mensualmente. ¿Cuantas veces?', '3') || '0', 10); if (n > 0 && onRepeat) onRepeat(ctx.v, Math.min(n, 12)); setCtx(null); }}><Icon name="history" size={15} />Repetir mensualmente</button>
-          {getUser()?.rol === 'admin' && ctx.v.estado !== 'cancelada' && <button onClick={() => { onCancelar && onCancelar(ctx.v); setCtx(null); }} style={{ color: 'var(--falla)' }}><Icon name="x" size={15} />Cancelar visita</button>}
+          {getUser()?.rol === 'admin' && ctx.v._jid && ctx.v._jestado !== 'cancelada' && <button onClick={() => { onCancelarJornada && onCancelarJornada(ctx.v); setCtx(null); }} style={{ color: 'var(--falla)' }}><Icon name="x" size={15} />Cancelar el dia {ctx.v._dia}</button>}
+          {getUser()?.rol === 'admin' && ctx.v.estado !== 'cancelada' && <button onClick={() => { onCancelar && onCancelar(ctx.v); setCtx(null); }} style={{ color: 'var(--falla)' }}><Icon name="x" size={15} />{ctx.v._diaTot ? 'Cancelar toda la visita' : 'Cancelar visita'}</button>}
           {getUser()?.rol === 'admin' && <button onClick={() => { onDelete && onDelete(ctx.v.id); setCtx(null); }} style={{ color: 'var(--falla)' }}><Icon name="trash" size={15} />Eliminar visita</button>}
         </div>
       </>}

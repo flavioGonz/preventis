@@ -774,9 +774,18 @@ export function mountExtras(app, q) {
     res.json({ ok: true });
   }));
 
-  // Recalcula fecha/fecha_fin/multidia de la visita a partir de sus jornadas
+  // Cancelar una sola jornada (dia) sin tocar el resto de la visita
+  app.post('/api/visitas/:id/jornadas/:jid/cancelar', wrap(async (req, res) => {
+    const motivo = ((req.body || {}).motivo || '').trim();
+    const j = (await q("UPDATE visita_jornadas SET estado='cancelada', nota=COALESCE(NULLIF($3,''), nota) WHERE id=$1 AND visita_id=$2 RETURNING *", [req.params.jid, req.params.id, motivo ? ('Cancelada: ' + motivo) : ''])).rows[0];
+    if (!j) return res.status(404).json({ error: 'Jornada no encontrada' });
+    await recomputeRango(req.params.id);
+    res.json(j);
+  }));
+
+  // Recalcula fecha/fecha_fin/multidia de la visita a partir de sus jornadas NO canceladas
   async function recomputeRango(id) {
-    const r = (await q('SELECT min(fecha) AS ini, max(fecha) AS fin, count(*)::int AS n FROM visita_jornadas WHERE visita_id=$1', [id])).rows[0];
+    const r = (await q("SELECT min(fecha) AS ini, max(fecha) AS fin, count(*)::int AS n FROM visita_jornadas WHERE visita_id=$1 AND estado <> 'cancelada'", [id])).rows[0];
     if (r && r.n > 0) await q('UPDATE visitas SET fecha=$2, fecha_fin=$3, multidia=$4 WHERE id=$1', [id, r.ini, r.fin, r.n > 1]);
   }
 
@@ -1226,7 +1235,8 @@ export function mountExtras(app, q) {
     res.json(r.rows[0]);
   }));
   app.get('/api/tickets/:id/visitas', authMiddleware, wrap(async (req, res) => {
-    res.json((await q(`SELECT v.id, v.fecha, v.estado, v.tipo, t.nombre AS tecnico
+    res.json((await q(`SELECT v.id, v.fecha, v.fecha_fin, v.multidia, v.estado, v.tipo, t.nombre AS tecnico,
+      (SELECT json_agg(json_build_object('orden',j.orden,'fecha',j.fecha,'estado',j.estado) ORDER BY j.orden) FROM visita_jornadas j WHERE j.visita_id=v.id) AS jornadas
       FROM visitas v LEFT JOIN tecnicos t ON t.id=v.tecnico_id
       WHERE v.ticket_id=$1 ORDER BY v.fecha DESC, v.id DESC`, [req.params.id])).rows);
   }));

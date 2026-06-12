@@ -160,14 +160,18 @@ export default function VisitaDetalle({ user }) {
 
   if (!visita) return <Loading />;
   const jorn = visita.jornadas || [];
-  const jEnCurso = jorn.find(j => j.estado === 'en_curso');
-  const jPend = jorn.filter(j => j.estado === 'planificada').length;
-  const jDone = jorn.filter(j => j.estado === 'completada').length;
-  const multiInfo = visita.multidia ? (jEnCurso ? 'Dia ' + jEnCurso.orden + '/' + jorn.length : (visita.estado === 'en_curso' && jPend ? 'En pausa' : null)) : null;
-  const JEST = { planificada: 'Planificada', en_curso: 'En curso', completada: 'Completada' };
+  const jornVis = jorn.filter(j => j.estado !== 'cancelada');
+  const jEnCurso = jornVis.find(j => j.estado === 'en_curso');
+  const jPend = jornVis.filter(j => j.estado === 'planificada').length;
+  const jDone = jornVis.filter(j => j.estado === 'completada').length;
+  const jIdxEnCurso = jEnCurso ? jornVis.indexOf(jEnCurso) + 1 : 0;
+  const multiInfo = visita.multidia ? (jEnCurso ? 'Dia ' + jIdxEnCurso + '/' + jornVis.length : (visita.estado === 'en_curso' && jPend ? 'En pausa' : null)) : null;
+  const JEST = { planificada: 'Planificada', en_curso: 'En curso', completada: 'Completada', cancelada: 'Cancelada' };
   const iniciarJornada = async (jid) => { try { const g = await getGPS(); await api.post('/api/visitas/' + id + '/jornadas/' + jid + '/iniciar', { lat: g?.lat, lon: g?.lon }); toast.ok('Jornada iniciada'); loadVisita(); } catch (e) { toast.err(e.message); } };
   const pausarJornada = async (jid) => { const nota = (prompt('Nota de la jornada (opcional):', '') || '').trim(); try { await api.post('/api/visitas/' + id + '/jornadas/' + jid + '/pausar', { nota: nota || null }); toast.ok('Jornada pausada (continua otro dia)'); loadVisita(); } catch (e) { toast.err(e.message); } };
   const reassignJornada = async (jid, tecnico_id) => { try { await api.put('/api/visitas/' + id + '/jornadas/' + jid, { tecnico_id: tecnico_id ? Number(tecnico_id) : 0 }); loadVisita(); } catch (e) { toast.err(e.message); } };
+  const cancelarJornada = async (jid, dia) => { const m = (prompt('Motivo de cancelar el dia ' + dia + ':', '') || '').trim(); try { await api.post('/api/visitas/' + id + '/jornadas/' + jid + '/cancelar', { motivo: m }); toast.ok('Dia cancelado'); loadVisita(); } catch (e) { toast.err(e.message); } };
+  const reactivarJornada = async (jid) => { try { await api.put('/api/visitas/' + id + '/jornadas/' + jid, { estado: 'planificada' }); toast.ok('Dia reactivado'); loadVisita(); } catch (e) { toast.err(e.message); } };
   const fotos = (visita.archivos || []).filter(a => a.tipo === 'foto');
   const adjuntos = (visita.archivos || []).filter(a => a.tipo === 'adjunto');
   const total = sug?.length || 0;
@@ -266,7 +270,7 @@ export default function VisitaDetalle({ user }) {
 
       {visita.multidia && jorn.length > 0 && <div className="card jor-card">
         <div className="sec-head"><span className="fc-ic"><Icon name="calendar" size={17} /></span><b>Jornadas de la visita</b>
-          <span className="muted" style={{ marginLeft: 'auto', fontSize: 13 }}>{jDone} de {jorn.length} dias trabajados</span>
+          <span className="muted" style={{ marginLeft: 'auto', fontSize: 13 }}>{jDone} de {jornVis.length} dias trabajados</span>
         </div>
         <div className="jor-list">
           {jorn.map(j => {
@@ -274,10 +278,10 @@ export default function VisitaDetalle({ user }) {
             const est = j.estado;
             return (
               <div key={j.id} className={'jor-item ' + est}>
-                <div className="jor-ic"><Icon name={est === 'completada' ? 'check' : est === 'en_curso' ? 'clock' : 'calendar'} size={15} /></div>
+                <div className="jor-ic"><Icon name={est === 'completada' ? 'check' : est === 'en_curso' ? 'clock' : est === 'cancelada' ? 'x' : 'calendar'} size={15} /></div>
                 <div className="jor-body">
                   <div className="jor-top"><b>Dia {j.orden}</b> · {fd.toLocaleDateString('es-UY', { weekday: 'short', day: '2-digit', month: '2-digit' })}
-                    <span className={'badge mini ' + (est === 'completada' ? 'ok' : est === 'en_curso' ? 'info' : 'gris')}>{JEST[est] || est}</span>
+                    <span className={'badge mini ' + (est === 'completada' ? 'ok' : est === 'en_curso' ? 'info' : est === 'cancelada' ? 'falla' : 'gris')}>{JEST[est] || est}</span>
                   </div>
                   <div className="jor-sub">
                     {(j.hora_inicio || j.hora_fin) && <span><Icon name="clock" size={12} /> {j.hora_inicio ? hhmm(j.hora_inicio) : '--:--'} → {j.hora_fin ? hhmm(j.hora_fin) : '...'}</span>}
@@ -285,11 +289,13 @@ export default function VisitaDetalle({ user }) {
                   </div>
                 </div>
                 {visita.estado !== 'cerrada' && <div className="jor-act">
-                  <select className="jor-tec" value={j.tecnico_id || ''} onChange={e => reassignJornada(j.id, e.target.value)} title="Tecnico del dia">
+                  {est !== 'cancelada' && <select className="jor-tec" value={j.tecnico_id || ''} onChange={e => reassignJornada(j.id, e.target.value)} title="Tecnico del dia">
                     <option value="">Sin tecnico</option>{tecnicos.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-                  </select>
+                  </select>}
                   {est === 'planificada' && <button className="btn sm" onClick={() => iniciarJornada(j.id)}><Icon name="arrowRight" size={14} />Iniciar</button>}
                   {est === 'en_curso' && <button className="btn sec sm" onClick={() => pausarJornada(j.id)}><Icon name="clock" size={14} />Pausar</button>}
+                  {esAdmin && (est === 'planificada' || est === 'en_curso') && <button className="btn ghost sm" style={{ color: 'var(--falla)' }} onClick={() => cancelarJornada(j.id, j.orden)} title="Cancelar este dia"><Icon name="x" size={14} /></button>}
+                  {esAdmin && est === 'cancelada' && <button className="btn ghost sm" onClick={() => reactivarJornada(j.id)}><Icon name="history" size={14} />Reactivar</button>}
                 </div>}
               </div>
             );
