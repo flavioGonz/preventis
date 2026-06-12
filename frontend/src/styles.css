@@ -1961,3 +1961,7 @@ input[type="date"], input[type="datetime-local"], input[type="time"] { max-width
 .tkd-dia.j-cancelada{ background:#fee2e2; color:#dc2626; border-color:#fecaca; text-decoration:line-through; }
 .tkd-dias-n{ font-size:10.5px; color:var(--muted); margin-left:2px; }
 
+/* ===== Version en el sidebar ===== */
+.brand-txt{ display:flex; flex-direction:column; line-height:1.12; min-width:0; }
+.brand-ver{ font-size:9.5px; color:var(--subtle); font-weight:600; letter-spacing:.02em; margin-top:1px; font-family:ui-monospace,Menlo,Consolas,monospace; }
+

@@ -26,6 +26,14 @@ const otaFail = (k) => { const e = _ota.get(k) || { n: 0 }; e.n = (e.n || 0) + 1
 const otaOk = (k) => _ota.delete(k);
 
 export function mountOTA(app, q) {
+  // Version de la app (cualquier usuario autenticado; se muestra en el sidebar)
+  app.get('/api/app/version', authMiddleware, async (req, res) => {
+    const commit = await git(['rev-parse', '--short', 'HEAD']);
+    let version = '1.0.0';
+    try { version = (fs.readFileSync(APP + '/VERSION', 'utf8').trim() || version); } catch {}
+    res.json({ version, commit });
+  });
+
   // Versión instalada (+ chequeo best-effort de si hay algo nuevo en el repo)
   app.get('/api/system/version', authMiddleware, adminOnly, async (req, res) => {
     const hash = await git(['rev-parse', '--short', 'HEAD']);

@@ -53,12 +53,17 @@ function Clock() {
 
 function Brand() {
   const [b, setB] = useState(getBranding());
+  const [ver, setVer] = useState(null);
   useEffect(() => onBranding(setB), []);
+  useEffect(() => { api.get('/api/app/version').then(setVer).catch(() => { }); }, []);
   const logo = b?.logo_path ? api.base + b.logo_path : '/logo_es.png';
   return (
     <div className="brand">
       <img src={logo} alt={b?.app_nombre || 'Preventis'} style={{ height: 30 }} onError={e => { e.target.src = '/logo_es.png'; }} />
-      <span className="brand-name">{b?.app_nombre || 'Preventis'}</span>
+      <div className="brand-txt">
+        <span className="brand-name">{b?.app_nombre || 'Preventis'}</span>
+        {ver && <span className="brand-ver">v{ver.version}{ver.commit ? ' · ' + ver.commit : ''}</span>}
+      </div>
     </div>
   );
 }
