@@ -1,0 +1,7 @@
+[Unit]
+Description=Preventis OTA updater (oneshot, root)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/preventis/ota/ota-run.sh

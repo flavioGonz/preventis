@@ -13,6 +13,7 @@ import { mount2FA, ensure2FASchema } from './twofa.js';
 import { mountChatbot, ensureChatbotSchema } from './chatbot.js';
 import { mountExtras } from './extras.js';
 import { mountReportes } from './reportes.js';
+import { mountOTA } from './ota.js';
 import http from 'http';
 import { Server as SocketServer } from 'socket.io';
 import { setIO, notify, recentEvents } from './realtime.js';
@@ -32,6 +33,7 @@ mount2FA(app, q);
 mountChatbot(app, q);
 mountExtras(app, q);
 mountReportes(app, q);
+mountOTA(app, q);
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),

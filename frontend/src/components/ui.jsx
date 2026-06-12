@@ -4,8 +4,8 @@ import { Icon } from './icons.jsx';
 
 export function Modal({ title, subtitle, children, onClose, footer }) {
   const node = (
-    <div className="modal-bg" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
+    <div className="modal-bg">
+      <div className="modal">
         <div className="modal-head">
           <div>
             <h3>{title}</h3>

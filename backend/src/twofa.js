@@ -205,3 +205,15 @@ export function mount2FA(app, q) {
     } catch { res.status(401).json({ error: 'Sesion de login expirada, vuelve a ingresar.' }); }
   });
 }
+
+// Verifica el codigo 2FA (TOTP o codigo de respaldo) de un usuario ya autenticado. Reutilizado por el OTA.
+export async function verify2FACode(q, userId, code) {
+  if (!code) return false;
+  const u = (await q('SELECT * FROM usuarios WHERE id=$1', [userId])).rows[0];
+  if (!u || !u.twofa_enabled) return false;
+  if (totpVerify(dec(u.twofa_secret), code)) return true;
+  const h = hashCode(code);
+  const list = Array.isArray(u.twofa_backup) ? u.twofa_backup : [];
+  if (list.includes(h)) { await q('UPDATE usuarios SET twofa_backup=$1 WHERE id=$2', [JSON.stringify(list.filter(x => x !== h)), u.id]); return true; }
+  return false;
+}

@@ -38,8 +38,8 @@ export const fmtDur = (desde, hasta) => {
 
 export function ConfirmModal({ titulo, mensaje, confirmar = 'Eliminar', icono = 'trash', onConfirm, onClose }) {
   return (
-    <div className="modal-bg" onClick={onClose}>
-      <div className="cfm" onClick={e => e.stopPropagation()}>
+    <div className="modal-bg">
+      <div className="cfm">
         <span className="cfm-ic"><Icon name={icono} size={22} /></span>
         <b>{titulo}</b>
         <p>{mensaje}</p>

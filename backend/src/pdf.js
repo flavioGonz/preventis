@@ -176,7 +176,19 @@ export async function buildInformePDF(visitaId, uploadDir) {
   seccion('Equipos probados');
   const cols = [{ t: 'Etiqueta', w: 92, mono: true }, { t: 'Sistema', w: 90 }, { t: 'Tipo', w: 86 }, { t: 'Estado', w: 80 }, { t: 'Comentarios', w: CW - 92 - 90 - 86 - 80 }];
   const fila = (vals, o = {}) => {
-    let x = ML; const y = doc.y, h = o.header ? 21 : 19;
+    // Altura dinamica: la fila se expande para que ningun dato quede cortado (hasta ~4 lineas)
+    let h;
+    if (o.header) h = 21;
+    else {
+      const hs = cols.map((c, i) => {
+        doc.font(c.mono ? 'Courier' : 'Helvetica').fontSize(8.6);
+        return doc.heightOfString(String(vals[i] ?? ''), { width: c.w - 14, lineGap: 1 });
+      });
+      h = Math.max(19, Math.min(50, Math.max(...hs) + 10));
+    }
+    // Salto de pagina usando la altura real de la fila (evita cortes al pie)
+    if (!o.header && doc.y + h > H - 64) { doc.addPage(); runningHeader(); fila(cols.map(c => c.t), { header: true }); }
+    let x = ML; const y = doc.y;
     if (o.header) doc.rect(ML, y, CW, h).fill(NAVY);
     else if (o.zebra) doc.rect(ML, y, CW, h).fill('#f6f8fb');
     if (o.falla) doc.rect(ML, y, 2.5, h).fill(RED);
@@ -185,7 +197,7 @@ export async function buildInformePDF(visitaId, uploadDir) {
       const isEstado = !o.header && i === 3 && o.falla;
       doc.fillColor(o.header ? '#fff' : (isEstado ? RED : INK));
       doc.font(o.header ? 'Courier-Bold' : (c.mono ? 'Courier' : 'Helvetica')).fontSize(o.header ? 8 : 8.6);
-      doc.text(String(vals[i] ?? ''), x + 7, y + (o.header ? 6.5 : 5.5), { width: c.w - 12, height: h, ellipsis: true, lineBreak: false });
+      doc.text(String(vals[i] ?? ''), x + 7, y + (o.header ? 6.5 : 5), { width: c.w - 14, height: o.header ? h : h - 7, ellipsis: true, lineGap: 1 });
       x += c.w;
     });
     doc.save().strokeColor(o.header ? NAVY : LINE).lineWidth(0.6).moveTo(ML, y + h).lineTo(W - ML, y + h).stroke().restore();
@@ -194,7 +206,6 @@ export async function buildInformePDF(visitaId, uploadDir) {
   fila(cols.map(c => c.t), { header: true });
   if (!pruebas.length) { doc.font('Helvetica-Oblique').fontSize(9.5).fillColor(GRIS).text('Sin pruebas registradas en esta visita.', ML + 7, doc.y + 6); doc.y += 24; }
   pruebas.forEach((p, i) => {
-    if (doc.y > H - 64) { doc.addPage(); runningHeader(); fila(cols.map(c => c.t), { header: true }); }
     fila([p.etiqueta, p.sistema, p.tipo_elemento, p.estado, p.comentarios], { falla: p.es_falla, zebra: i % 2 === 1 });
   });
   // Totales (linea sobria)

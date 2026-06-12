@@ -224,8 +224,8 @@ export default function Mapa() {
       </div>}
 
       {agendaNuevo && <AgendarModal nuevo={agendaNuevo} clientes={(data.clientes || []).map(c => ({ id: c.id, nombre: c.nombre }))} tecnicos={tecnicos} onClose={() => setAgendaNuevo(null)} onSave={guardarAgenda} />}
-      {navTo && <div className="modal-bg" onClick={() => setNavTo(null)}>
-        <div className="navpick" onClick={e => e.stopPropagation()}>
+      {navTo && <div className="modal-bg">
+        <div className="navpick">
           <div className="navpick-h"><b><Icon name="pin" size={15} /> Trazar ruta hasta {navTo.label}</b><button className="btn ghost icon" onClick={() => setNavTo(null)}><Icon name="x" size={16} /></button></div>
           <div className="muted" style={{ fontSize: 12.5, padding: '0 2px 8px' }}>Elegi el tecnico desde el que dibujar la ruta:</div>
           <div className="navpick-list">

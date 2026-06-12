@@ -1,0 +1,9 @@
+[Unit]
+Description=Vigila el disparador de actualización OTA de Preventis
+
+[Path]
+PathExists=/var/lib/preventis/ota/trigger
+Unit=preventis-ota.service
+
+[Install]
+WantedBy=multi-user.target

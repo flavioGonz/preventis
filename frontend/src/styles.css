@@ -1867,3 +1867,49 @@ input[type="date"], input[type="datetime-local"], input[type="time"] { max-width
 .rep-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
 .rep-bar .wa-search { margin-bottom: 0; min-width: 200px; }
 @media (max-width: 640px) { .rep-bar .wa-search { flex-basis: 100%; } }
+
+/* ===== OTA — Actualizaciones del sistema ===== */
+.ota-wrap{ display:flex; flex-direction:column; gap:14px; max-width:560px; }
+.ota-card{ display:flex; gap:14px; align-items:center; background:var(--surface); border:1px solid var(--border,#e3e8ef); border-radius:16px; padding:18px; box-shadow:var(--sh-xs); }
+.ota-card-ic{ width:52px;height:52px;flex:none;border-radius:14px;display:grid;place-items:center;background:var(--brand-soft);color:var(--brand-600); }
+.ota-k{ font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted); }
+.ota-ver{ font-size:22px;font-weight:800;color:var(--text);font-family:ui-monospace,Menlo,Consolas,monospace;margin-top:2px; }
+.ota-sub{ font-size:13.5px;color:var(--text);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.ota-meta{ font-size:12px;color:var(--muted);margin-top:5px;display:flex;align-items:center; }
+.ota-badge{ flex:none;display:inline-flex;align-items:center;gap:6px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:700;padding:5px 10px;border-radius:999px; }
+.ota-badge-dot{ width:7px;height:7px;border-radius:50%;background:#f59e0b;animation:otaPulse 1.4s infinite; }
+.ota-actions{ display:flex;gap:10px; }
+.ota-note{ display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--muted);background:var(--surface-2);border:1px solid var(--border,#e3e8ef);border-radius:12px;padding:11px 13px;line-height:1.5; }
+.ota-note svg{ flex:none;margin-top:1px;color:var(--brand-600); }
+.ota-modal{ max-width:440px; }
+.ota-confirm{ text-align:center;padding:6px 4px 4px; }
+.ota-shield{ width:64px;height:64px;margin:4px auto 14px;border-radius:50%;display:grid;place-items:center;background:var(--brand-soft);color:var(--brand-600);animation:otaPop .25s ease; }
+.ota-shield.err{ background:#fee2e2;color:#dc2626; }
+.ota-confirm-txt{ font-size:14px;color:var(--text);line-height:1.55;margin:0 0 16px; }
+.ota-code{ width:100%;text-align:center;font-size:26px;letter-spacing:.4em;font-family:ui-monospace,Menlo,Consolas,monospace;padding:12px;border-radius:12px;border:1.5px solid var(--border-strong,#cbd5e1);margin-bottom:12px; }
+.ota-err{ display:flex;align-items:center;justify-content:center;color:#dc2626;font-size:13px;margin-bottom:10px; }
+.ota-progress{ padding:8px 4px 4px;text-align:center; }
+.ota-gauge{ --pct:0;width:128px;height:128px;border-radius:50%;margin:2px auto 18px;display:grid;place-items:center;position:relative;background:conic-gradient(var(--brand-600) calc(var(--pct)*1%), var(--brand-100) 0);transition:background .7s cubic-bezier(.4,0,.2,1); }
+.ota-gauge.ok{ background:conic-gradient(#16a34a 100%, #16a34a 0); }
+.ota-gauge::after{ content:'';position:absolute;inset:11px;border-radius:50%;background:var(--surface); }
+.ota-gauge-num{ position:relative;font-size:30px;font-weight:800;color:var(--text); }
+.ota-gauge-num span{ font-size:14px;color:var(--muted);margin-left:1px; }
+.ota-bar{ height:8px;border-radius:999px;background:var(--brand-100);overflow:hidden;margin-bottom:18px; }
+.ota-bar-fill{ height:100%;border-radius:999px;background:linear-gradient(90deg,var(--brand-500),var(--brand-700));transition:width .7s cubic-bezier(.4,0,.2,1);position:relative; }
+.ota-bar-fill::after{ content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent);animation:otaShimmer 1.3s infinite; }
+.ota-steps{ text-align:left;display:flex;flex-direction:column;gap:9px;margin:0 auto;max-width:300px; }
+.ota-step{ display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--subtle);transition:color .3s; }
+.ota-step .ota-step-ic{ width:22px;height:22px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--surface-2);border:1px solid var(--border,#e3e8ef);color:var(--subtle); }
+.ota-step.active{ color:var(--text);font-weight:600; }
+.ota-step.active .ota-step-ic{ border-color:var(--brand-500);color:var(--brand-600); }
+.ota-step.done{ color:var(--text); }
+.ota-step.done .ota-step-ic{ background:var(--brand-600);border-color:var(--brand-600);color:#fff; }
+.ota-pdot{ width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.5; }
+.ota-spin{ width:13px;height:13px;border-radius:50%;border:2px solid var(--brand-200);border-top-color:var(--brand-600);animation:otaSpin .7s linear infinite; }
+.ota-done{ margin-top:18px;text-align:center;animation:otaPop .3s ease; }
+.ota-done-ic{ width:60px;height:60px;margin:0 auto 8px;border-radius:50%;display:grid;place-items:center;background:#dcfce7;color:#16a34a; }
+@keyframes otaSpin{ to{ transform:rotate(360deg); } }
+@keyframes otaPulse{ 0%,100%{ opacity:1; } 50%{ opacity:.3; } }
+@keyframes otaShimmer{ 0%{ transform:translateX(-100%); } 100%{ transform:translateX(100%); } }
+@keyframes otaPop{ from{ transform:scale(.85);opacity:0; } to{ transform:scale(1);opacity:1; } }
+

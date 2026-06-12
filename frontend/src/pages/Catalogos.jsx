@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { api } from '../api.js';
 import { Loading, PageHeader, Modal, Field, Empty } from '../components/ui.jsx';
 import { Icon } from '../components/icons.jsx';
@@ -16,7 +16,7 @@ export default function Catalogos({ user }) {
     { label: 'Dispositivos', items: [['tipos_elemento', 'Tipos de elementos', 'list'], ['estados_equipo', 'Estado de equipos', 'alert'], ...adm([['equipos_estandar', 'Equipos estandar', 'camera']])] },
     { label: 'Mi cuenta', items: [['seguridad', 'Seguridad (2FA)', 'checkCircle']] },
     { label: 'Usuarios', items: adm([['usuarios', 'Usuarios', 'users'], ['online', 'En linea', 'pin'], ['roles', 'Roles', 'star'], ['permisos', 'Permisos', 'settings']]) },
-    { label: 'Sistema', items: adm([['branding', 'Branding', 'star'], ['chatbot', 'Chatbot', 'whatsapp'], ['auditoria', 'Auditoria', 'history'], ['respaldos', 'Respaldos', 'box']]) },
+    { label: 'Sistema', items: adm([['branding', 'Branding', 'star'], ['chatbot', 'Chatbot', 'whatsapp'], ['auditoria', 'Auditoria', 'history'], ['respaldos', 'Respaldos', 'box'], ['actualizar', 'Actualizaciones', 'download']]) },
   ].filter(g => g.items.length);
 
   return (
@@ -49,6 +49,7 @@ export default function Catalogos({ user }) {
           {tab === 'chatbot' && isAdmin && <ChatbotPanel />}
           {tab === 'auditoria' && isAdmin && <Auditoria />}
           {tab === 'respaldos' && isAdmin && <Respaldos />}
+          {tab === 'actualizar' && isAdmin && <Actualizaciones />}
         </div>
       </div>
     </div>
@@ -632,3 +633,151 @@ function Branding() {
     </div>
   );
 }
+
+// ===== OTA — Actualizaciones del sistema (Configuración › Sistema) =====
+const OTA_STEPS = [
+  { pct: 15, label: 'Conectando con el repositorio' },
+  { pct: 30, label: 'Descargando la nueva versión' },
+  { pct: 45, label: 'Instalando dependencias' },
+  { pct: 65, label: 'Compilando la interfaz' },
+  { pct: 92, label: 'Reiniciando servicios' },
+  { pct: 100, label: 'Finalizado' },
+];
+
+function Actualizaciones() {
+  const [info, setInfo] = useState(null);
+  const [open, setOpen] = useState(false);
+  const load = () => { setInfo(null); api.get('/api/system/version').then(setInfo).catch(() => setInfo({ error: true })); };
+  useEffect(() => { load(); }, []);
+  return (
+    <div className="ota-wrap">
+      <div className="ota-card">
+        <div className="ota-card-ic"><Icon name="download" size={26} /></div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="ota-k">Versión instalada</div>
+          {!info ? <div className="muted" style={{ marginTop: 6 }}>Cargando…</div>
+            : info.error ? <div className="muted" style={{ marginTop: 6 }}>No disponible</div>
+              : (<>
+                <div className="ota-ver">{info.version}</div>
+                <div className="ota-sub" title={info.subject}>{info.subject}</div>
+                <div className="ota-meta"><Icon name="clock" size={13} />&nbsp;{info.date ? new Date(info.date).toLocaleString('es-UY') : '-'} · rama {info.branch}</div>
+              </>)}
+        </div>
+        {info?.updateAvailable === true && <span className="ota-badge"><span className="ota-badge-dot" />Actualización disponible</span>}
+      </div>
+      <div className="ota-actions">
+        <button className="btn ghost" onClick={load}><Icon name="repeat" size={15} />&nbsp;Buscar</button>
+        <button className="btn" onClick={() => setOpen(true)}><Icon name="download" size={15} />&nbsp;Actualizar ahora</button>
+      </div>
+      <div className="ota-note"><Icon name="lock" size={14} /><span>Proceso seguro: requiere tu código de verificación (2FA). La actualización se descarga del repositorio oficial y reinicia el servicio automáticamente.</span></div>
+      {open && <OTAModal onClose={() => setOpen(false)} onDone={load} />}
+    </div>
+  );
+}
+
+function OTAModal({ onClose, onDone }) {
+  const [phase, setPhase] = useState('confirm'); // confirm | running | done | error
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [st, setSt] = useState({ pct: 0, step: '' });
+  const poll = useRef(null);
+
+  const stop = () => { if (poll.current) { clearInterval(poll.current); poll.current = null; } };
+  useEffect(() => () => stop(), []);
+
+  const startPoll = () => {
+    let tries = 0;
+    const tick = async () => {
+      try {
+        const s = await api.get('/api/system/update/status');
+        if (s && typeof s.pct === 'number') setSt(s);
+        if (s.state === 'done') { setSt(s); setPhase('done'); stop(); onDone && onDone(); return; }
+        if (s.state === 'error') { setErr(s.step || 'Falló la actualización'); setPhase('error'); stop(); return; }
+      } catch { /* la API se está reiniciando: seguimos intentando */ }
+      if (++tries > 200) { setErr('Tiempo de espera agotado. Revisá el estado del servidor.'); setPhase('error'); stop(); }
+    };
+    poll.current = setInterval(tick, 1500);
+    tick();
+  };
+
+  const iniciar = async () => {
+    if (code.trim().length < 6) { setErr('Ingresá tu código de verificación.'); return; }
+    setBusy(true); setErr('');
+    try {
+      await api.post('/api/system/update', { code: code.trim() });
+      setPhase('running'); setSt({ pct: 5, step: 'Iniciando…' });
+      startPoll();
+    } catch (e) { setErr(e.message || 'No se pudo iniciar la actualización.'); }
+    setBusy(false);
+  };
+
+  const pct = phase === 'done' ? 100 : (st.pct || 0);
+  const sub = phase === 'confirm' ? 'Verificá tu identidad para continuar'
+    : phase === 'running' ? 'No cierres esta ventana…'
+      : phase === 'done' ? 'Completada con éxito' : 'No se pudo completar';
+
+  return (
+    <div className="modal-bg">
+      <div className="modal ota-modal">
+        <div className="modal-head">
+          <div>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Icon name="download" size={18} /> Actualización del sistema</h3>
+            <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>{sub}</div>
+          </div>
+          {phase !== 'running' && <button className="btn ghost icon" onClick={onClose}><Icon name="x" size={18} /></button>}
+        </div>
+
+        {phase === 'confirm' && (
+          <div className="ota-confirm">
+            <div className="ota-shield"><Icon name="lock" size={28} /></div>
+            <p className="ota-confirm-txt">Se actualizará Preventis a la última versión publicada y se reiniciará el servicio. Ingresá tu <b>código de verificación (2FA)</b> para autorizar.</p>
+            <input className="ota-code" inputMode="numeric" autoFocus maxLength={10} placeholder="••••••" value={code}
+              onChange={e => setCode(e.target.value.replace(/[^0-9a-fA-F]/g, ''))}
+              onKeyDown={e => e.key === 'Enter' && !busy && iniciar()} />
+            {err && <div className="ota-err"><Icon name="alert" size={14} />&nbsp;{err}</div>}
+            <button className="btn block" disabled={busy} onClick={iniciar} style={{ marginTop: 4 }}>{busy ? 'Verificando…' : 'Iniciar actualización'}</button>
+          </div>
+        )}
+
+        {(phase === 'running' || phase === 'done') && (
+          <div className="ota-progress">
+            <div className={'ota-gauge' + (phase === 'done' ? ' ok' : '')} style={{ '--pct': pct }}>
+              <div className="ota-gauge-num">{pct}<span>%</span></div>
+            </div>
+            <div className="ota-bar"><div className="ota-bar-fill" style={{ width: pct + '%' }} /></div>
+            <div className="ota-steps">
+              {OTA_STEPS.map((s, i) => {
+                const done = pct >= s.pct;
+                const active = !done && (i === 0 || pct >= OTA_STEPS[i - 1].pct);
+                return (
+                  <div key={i} className={'ota-step' + (done ? ' done' : active ? ' active' : '')}>
+                    <span className="ota-step-ic">{done ? <Icon name="check" size={13} /> : active ? <span className="ota-spin" /> : <span className="ota-pdot" />}</span>
+                    <span>{s.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+            {phase === 'done' && (
+              <div className="ota-done">
+                <div className="ota-done-ic"><Icon name="checkCircle" size={30} /></div>
+                <b>¡Actualización completada!</b>
+                <p className="muted" style={{ margin: '4px 0 0' }}>Recargá la aplicación para usar la nueva versión.</p>
+                <button className="btn block" onClick={() => window.location.reload()} style={{ marginTop: 14 }}><Icon name="repeat" size={15} />&nbsp;Recargar app</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {phase === 'error' && (
+          <div className="ota-confirm">
+            <div className="ota-shield err"><Icon name="alert" size={28} /></div>
+            <p className="ota-confirm-txt">{err}</p>
+            <button className="btn ghost block" onClick={onClose}>Cerrar</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+

@@ -1136,8 +1136,8 @@ function UbicacionModal({ cliente, onClose, onSaved }) {
   };
 
   return (
-    <div className="modal-bg" onClick={onClose}>
-      <div className="umodal" onClick={e => e.stopPropagation()}>
+    <div className="modal-bg">
+      <div className="umodal">
         <div className="umodal-head">
           <b><Icon name="pin" size={16} /> Ubicacion de {cliente.nombre}</b>
           <button className="btn ghost icon" aria-label="Cerrar" onClick={onClose}><Icon name="x" size={18} /></button>
