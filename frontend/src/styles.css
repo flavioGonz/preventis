@@ -750,17 +750,22 @@ canvas.firma { border:2px dashed var(--border-strong); border-radius:12px; touch
 .hist-av { width:32px; height:32px; border-radius:50%; object-fit:cover; border:1px solid var(--border); flex:none; }
 
 /* ===================== Configuracion (layout de ajustes) ===================== */
-.cfg { display:grid; grid-template-columns:248px 1fr; gap:24px; align-items:start; }
+.cfg { display:grid; grid-template-columns:256px 1fr; gap:28px; align-items:start; }
 @media (max-width:880px){ .cfg { grid-template-columns:1fr; gap:14px; } }
-.cfg-nav { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:10px; box-shadow:var(--sh-xs); position:sticky; top:16px; }
+.cfg-nav { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:8px; box-shadow:var(--sh-xs); position:sticky; top:16px; }
 @media (max-width:880px){ .cfg-nav { position:static; } }
-.cfg-group { font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--subtle); padding:13px 10px 6px; }
-.cfg-item { display:flex; align-items:center; gap:10px; width:100%; border:0; background:transparent; font:inherit; font-size:14px; font-weight:600; color:var(--muted); padding:9px 11px; border-radius:10px; cursor:pointer; text-align:left; transition:.12s; }
+.cfg-nav > div + div { border-top:1px solid var(--border); margin-top:5px; padding-top:1px; }
+.cfg-group { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:var(--subtle); padding:13px 12px 6px; }
+.cfg-item { position:relative; display:flex; align-items:center; gap:11px; width:100%; border:0; background:transparent; font:inherit; font-size:13.5px; font-weight:600; color:var(--muted); padding:9px 12px; border-radius:9px; cursor:pointer; text-align:left; transition:.12s; }
 .cfg-item:hover { background:var(--surface-2); color:var(--text); }
-.cfg-item.active { background:var(--brand-soft); color:var(--brand-700); }
+.cfg-item.active { background:var(--brand-soft); color:var(--brand-700); box-shadow:inset 3px 0 0 var(--brand-600); }
 .cfg-item.active svg { color:var(--brand-600); }
 .cfg-item svg { color:var(--subtle); flex:none; }
 .cfg-body { min-width:0; animation:tabIn .24s ease; }
+.cfg-head { display:flex; align-items:center; gap:14px; margin:0 2px 20px; padding-bottom:16px; border-bottom:1px solid var(--border); }
+.cfg-head-ic { width:44px; height:44px; flex:none; border-radius:13px; display:grid; place-items:center; background:var(--brand-soft); color:var(--brand-600); }
+.cfg-head h2 { margin:0; font-size:19px; font-weight:800; color:var(--text); letter-spacing:-.01em; }
+.cfg-head p { margin:3px 0 0; font-size:13px; color:var(--muted); }
 
 /* ===================== Flota ===================== */
 .fleet-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px; }

@@ -7,6 +7,26 @@ import { applyBranding } from '../branding.js';
 import Seguridad from './Seguridad.jsx';
 import ChatbotPanel from './ChatbotPanel.jsx';
 
+const CFG_DESC = {
+  tecnicos: 'Personas que realizan las visitas de mantenimiento.',
+  sistemas: 'Tipos de sistema de los equipos (CCTV, incendio, etc.).',
+  tipos_elemento: 'Categorias de elementos a controlar.',
+  estados_equipo: 'Estados posibles de un equipo y cuales cuentan como falla.',
+  seguridad: 'Tu segundo factor de autenticacion (2FA).',
+  usuarios: 'Cuentas con acceso a la aplicacion.',
+  online: 'Usuarios conectados en este momento.',
+  roles: 'Roles del sistema y su alcance.',
+  permisos: 'Que puede hacer cada rol.',
+  proveedores: 'Proveedores y terceros.',
+  equipos_estandar: 'Modelos para autocompletar al cargar equipos.',
+  branding: 'Logo, nombre y colores de la app y los informes.',
+  chatbot: 'Bot de WhatsApp: conexion, numeros autorizados y comandos.',
+  correo: 'Servidor SMTP para enviar correos desde la app.',
+  auditoria: 'Registro de cambios y acciones del sistema.',
+  respaldos: 'Copias de seguridad de la base y los archivos.',
+  actualizar: 'Version instalada y actualizacion del sistema.',
+};
+
 export default function Catalogos({ user }) {
   const isAdmin = user?.rol === 'admin';
   const [tab, setTab] = useState('tecnicos');
@@ -34,6 +54,7 @@ export default function Catalogos({ user }) {
           ))}
         </nav>
         <div className="cfg-body">
+          {(() => { const a = GROUPS.flatMap(g => g.items).find(it => it[0] === tab); return a ? <div className="cfg-head"><span className="cfg-head-ic"><Icon name={a[2]} size={19} /></span><div><h2>{a[1]}</h2>{CFG_DESC[tab] ? <p>{CFG_DESC[tab]}</p> : null}</div></div> : null; })()}
           {tab === 'tecnicos' && <CrudList tabla="tecnicos" campos={[['nombre', 'Nombre'], ['telefono', 'Telefono']]} avatar />}
           {tab === 'sistemas' && <CrudList tabla="sistemas" campos={[['nombre', 'Nombre']]} icon="box" />}
           {tab === 'tipos_elemento' && <CrudList tabla="tipos_elemento" campos={[['nombre', 'Nombre'], ['icono', 'Icono', 'icon']]} icon="list" />}
@@ -802,8 +823,8 @@ function Correo() {
         <div className="grid2">
           <Field label={L('line', 'Servidor (host)')}><input value={f.host || ''} onChange={e => set('host', e.target.value)} placeholder="smtp.gmail.com" /></Field>
           <Field label={L('settings', 'Puerto')}><input type="number" value={f.port || 587} onChange={e => set('port', Number(e.target.value))} placeholder="587" /></Field>
-          <Field label={L('users', 'Usuario')}><input value={f.user || ''} onChange={e => set('user', e.target.value)} placeholder="no-reply@dominio" /></Field>
-          <Field label={L('lock', 'Clave / App Password')}><input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder={f.has_pass ? '•••••• (sin cambios)' : 'pega la App Password'} /></Field>
+          <Field label={L('users', 'Usuario')}><input name="smtp_user" autoComplete="off" value={f.user || ''} onChange={e => set('user', e.target.value)} placeholder="no-reply@dominio" /></Field>
+          <Field label={L('lock', 'Clave / App Password')}><input type="password" name="smtp_pass" autoComplete="new-password" value={pass} onChange={e => setPass(e.target.value)} placeholder={f.has_pass ? '•••••• (sin cambios)' : 'pega la App Password'} /></Field>
           <Field label={L('mail', 'Remitente (from)')}><input value={f.from || ''} onChange={e => set('from', e.target.value)} placeholder="no-reply@dominio" /></Field>
           <Field label={L('star', 'Nombre remitente')}><input value={f.from_name || ''} onChange={e => set('from_name', e.target.value)} placeholder="Preventis" /></Field>
         </div>
