@@ -35,7 +35,7 @@ const waCodes = new Map(); // userId -> { code, exp }
 function setWa(userId) { const code = String(Math.floor(100000 + Math.random() * 900000)); waCodes.set(userId, { code, exp: Date.now() + 5 * 60000 }); return code; }
 function checkWa(userId, code) { const e = waCodes.get(userId); if (!e || Date.now() > e.exp) return false; if (String(code).replace(/\s/g, '') === e.code) { waCodes.delete(userId); return true; } return false; }
 
-async function waSend(q, texto, telefono) {
+export async function waSend(q, texto, telefono) {
   try {
     const cfg = ((await q("SELECT valor FROM app_config WHERE clave='chatbot'")).rows[0] || {}).valor || {};
     if (!cfg.url || !telefono) return false;

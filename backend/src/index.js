@@ -15,6 +15,7 @@ import { mountExtras } from './extras.js';
 import { mountReportes } from './reportes.js';
 import { mountOTA } from './ota.js';
 import { mountEmail, sendMail, buildEmailHtml } from './mailer.js';
+import { mountAlertas, dispatchAlerta } from './alertas.js';
 import http from 'http';
 import { Server as SocketServer } from 'socket.io';
 import { setIO, notify, recentEvents } from './realtime.js';
@@ -36,6 +37,7 @@ mountExtras(app, q);
 mountReportes(app, q);
 mountOTA(app, q);
 mountEmail(app, q);
+mountAlertas(app, q);
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
@@ -270,6 +272,8 @@ app.post('/api/clientes/:id/visitas', wrap(async (req, res) => {
   try {
     const c = await q('SELECT nombre FROM clientes WHERE id=$1', [req.params.id]);
     notify({ type: 'visita', icon: 'calendar', text: 'Nueva visita agendada: ' + (c.rows[0]?.nombre || 'cliente'), url: '/visitas/' + r.rows[0].id });
+    const fstr = dias.length ? (dias.length > 1 ? dias[0] + ' a ' + dias[dias.length - 1] + ' (' + dias.length + ' días)' : dias[0]) : '';
+    dispatchAlerta(q, 'visita_agendada', { titulo: 'Visita agendada · ' + (c.rows[0]?.nombre || 'cliente'), texto: fstr, url: '/visitas/' + r.rows[0].id, clienteId: req.params.id, tecnicoId: b.tecnico_id }).catch(() => {});
   } catch {}
   res.status(201).json(r.rows[0]);
 }));
@@ -390,6 +394,8 @@ app.post('/api/visitas/:id/pruebas', wrap(async (req, res) => {
       const eq = await q('SELECT e.etiqueta, e.codigo_qr, c.nombre AS cliente FROM equipos e JOIN clientes c ON c.id=e.cliente_id WHERE e.id=$1', [equipo_id]);
       const et = eq.rows[0]?.etiqueta || eq.rows[0]?.codigo_qr || 'Equipo';
       notify({ type: 'falla', icon: 'alert', text: 'Equipo en falla: ' + et + ' (' + (eq.rows[0]?.cliente || '') + ')', url: '/equipos/' + equipo_id });
+      const vv = (await q('SELECT cliente_id, tecnico_id FROM visitas WHERE id=$1', [req.params.id])).rows[0] || {};
+      dispatchAlerta(q, 'equipo_falla', { titulo: 'Equipo en falla · ' + et, texto: (eq.rows[0]?.cliente || '') + ' · ' + (est.rows[0]?.nombre || ''), url: '/visitas/' + req.params.id, clienteId: vv.cliente_id, tecnicoId: vv.tecnico_id }).catch(() => {});
     }
   } catch {}
   res.status(201).json(row);

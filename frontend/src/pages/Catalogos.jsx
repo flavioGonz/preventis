@@ -22,6 +22,7 @@ const CFG_DESC = {
   branding: 'Logo, nombre y colores de la app y los informes.',
   chatbot: 'Bot de WhatsApp: conexion, numeros autorizados y comandos.',
   correo: 'Servidor SMTP para enviar correos desde la app.',
+  alertas: 'Que eventos avisar y por que canal (email, WhatsApp, campana).',
   auditoria: 'Registro de cambios y acciones del sistema.',
   respaldos: 'Copias de seguridad de la base y los archivos.',
   actualizar: 'Version instalada y actualizacion del sistema.',
@@ -36,7 +37,7 @@ export default function Catalogos({ user }) {
     { label: 'Dispositivos', items: [['tipos_elemento', 'Tipos de elementos', 'list'], ['estados_equipo', 'Estado de equipos', 'alert'], ...adm([['equipos_estandar', 'Equipos estandar', 'camera']])] },
     { label: 'Mi cuenta', items: [['seguridad', 'Seguridad (2FA)', 'checkCircle']] },
     { label: 'Usuarios', items: adm([['usuarios', 'Usuarios', 'users'], ['online', 'En linea', 'pin'], ['roles', 'Roles', 'star'], ['permisos', 'Permisos', 'settings']]) },
-    { label: 'Sistema', items: adm([['branding', 'Branding', 'star'], ['chatbot', 'Chatbot', 'whatsapp'], ['correo', 'Correo', 'mail'], ['auditoria', 'Auditoria', 'history'], ['respaldos', 'Respaldos', 'box'], ['actualizar', 'Actualizaciones', 'download']]) },
+    { label: 'Sistema', items: adm([['branding', 'Branding', 'star'], ['chatbot', 'Chatbot', 'whatsapp'], ['correo', 'Correo', 'mail'], ['alertas', 'Alertas', 'bell'], ['auditoria', 'Auditoria', 'history'], ['respaldos', 'Respaldos', 'box'], ['actualizar', 'Actualizaciones', 'download']]) },
   ].filter(g => g.items.length);
 
   return (
@@ -69,6 +70,7 @@ export default function Catalogos({ user }) {
           {tab === 'branding' && isAdmin && <Branding />}
           {tab === 'chatbot' && isAdmin && <ChatbotPanel />}
           {tab === 'correo' && isAdmin && <Correo />}
+          {tab === 'alertas' && isAdmin && <Alertas />}
           {tab === 'auditoria' && isAdmin && <Auditoria />}
           {tab === 'respaldos' && isAdmin && <Respaldos />}
           {tab === 'actualizar' && isAdmin && <Actualizaciones />}
@@ -840,6 +842,51 @@ function Correo() {
         </div>
         <div className="muted" style={{ fontSize: 12.5, marginTop: 8 }}>Con Gmail / Google Workspace necesitas una <b>App Password</b> (la clave normal no sirve para SMTP).</div>
       </div>
+    </div>
+  );
+}
+
+function Alertas() {
+  const [eventos, setEventos] = useState(null);
+  const [cfg, setCfg] = useState({});
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { api.get('/api/alertas/eventos').then(setEventos); api.get('/api/alertas/config').then(c => setCfg(c || {})); }, []);
+  const rule = (id) => cfg[id] || {};
+  const setRule = (id, k, v) => setCfg(c => ({ ...c, [id]: { ...(c[id] || {}), [k]: v } }));
+  const guardar = async () => { setSaving(true); try { await api.put('/api/alertas/config', cfg); toast.ok('Alertas guardadas'); } catch (e) { toast.err(e.message); } setSaving(false); };
+  const probar = async (id) => { try { await api.post('/api/alertas/test', { evento: id }); toast.ok('Alerta de prueba enviada'); } catch (e) { toast.err(e.message); } };
+  if (!eventos) return <Loading rows={3} />;
+  const L = (icon, txt) => <span className="flabel"><Icon name={icon} size={13} />{txt}</span>;
+  const Chan = ({ id, k, icon, label }) => { const on = rule(id)[k] ?? (k === 'inapp'); return <button type="button" className={'alr-chan' + (on ? ' on' : '')} onClick={() => setRule(id, k, !on)}><Icon name={icon} size={15} />{label}</button>; };
+  return (
+    <div style={{ maxWidth: 720 }}>
+      <Field label={L('external', 'URL publica (para los enlaces de los avisos)')}>
+        <input value={cfg._public_url || ''} onChange={e => setCfg(c => ({ ...c, _public_url: e.target.value }))} placeholder="https://preventis.tudominio.com" />
+      </Field>
+      <div className="alr-list">
+        {eventos.map(ev => { const r = rule(ev.id); return (
+          <div key={ev.id} className="alr-card">
+            <div className="alr-head"><span className="alr-ic"><Icon name={ev.icon || 'bell'} size={16} /></span>
+              <div style={{ minWidth: 0 }}><b>{ev.label}</b><div className="muted" style={{ fontSize: 12.5 }}>{ev.desc}</div></div>
+              <button className="btn ghost sm" style={{ marginLeft: 'auto' }} onClick={() => probar(ev.id)}><Icon name="mail" size={14} />Probar</button>
+            </div>
+            <div className="alr-chans">
+              <Chan id={ev.id} k="email" icon="mail" label="Email" />
+              <Chan id={ev.id} k="whatsapp" icon="whatsapp" label="WhatsApp" />
+              <Chan id={ev.id} k="inapp" icon="bell" label="Campana" />
+            </div>
+            <div className="alr-dest">
+              <label className="chk-row"><input type="checkbox" checked={!!r.al_cliente} onChange={e => setRule(ev.id, 'al_cliente', e.target.checked)} />Al cliente (su email / telefono)</label>
+              <label className="chk-row"><input type="checkbox" checked={!!r.al_tecnico} onChange={e => setRule(ev.id, 'al_tecnico', e.target.checked)} />Al tecnico asignado (WhatsApp)</label>
+              <div className="grid2">
+                <Field label={L('mail', 'Emails extra (coma)')}><input value={(r.destinatarios || []).join(', ')} onChange={e => setRule(ev.id, 'destinatarios', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} placeholder="a@b.com, c@d.com" /></Field>
+                <Field label={L('whatsapp', 'WhatsApp extra (coma)')}><input value={(r.telefonos || []).join(', ')} onChange={e => setRule(ev.id, 'telefonos', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} placeholder="59899..., 59891..." /></Field>
+              </div>
+            </div>
+          </div>
+        ); })}
+      </div>
+      <button className="btn" onClick={guardar} disabled={saving} style={{ marginTop: 14 }}><Icon name="save" size={15} />{saving ? 'Guardando...' : 'Guardar alertas'}</button>
     </div>
   );
 }

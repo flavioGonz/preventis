@@ -1971,3 +1971,13 @@ input[type="date"], input[type="datetime-local"], input[type="time"] { max-width
 .brand-txt{ display:flex; flex-direction:column; line-height:1.12; min-width:0; }
 .brand-ver{ font-size:9.5px; color:var(--subtle); font-weight:600; letter-spacing:.02em; margin-top:1px; font-family:ui-monospace,Menlo,Consolas,monospace; }
 
+/* ===== Panel de Alertas ===== */
+.alr-list{ display:flex; flex-direction:column; gap:14px; margin-top:8px; }
+.alr-card{ border:1px solid var(--border,#e3e8ef); border-radius:14px; padding:16px; background:var(--surface); }
+.alr-head{ display:flex; align-items:center; gap:11px; margin-bottom:12px; }
+.alr-ic{ width:34px;height:34px;flex:none;border-radius:10px;display:grid;place-items:center;background:var(--brand-soft);color:var(--brand-600); }
+.alr-chans{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.alr-chan{ display:inline-flex; align-items:center; gap:6px; padding:7px 12px; border-radius:9px; border:1px solid var(--border,#e3e8ef); background:var(--surface-2); color:var(--muted); font-size:13px; font-weight:600; cursor:pointer; transition:.12s; }
+.alr-chan.on{ background:var(--brand-soft); color:var(--brand-700); border-color:var(--brand-200); }
+.alr-dest{ display:flex; flex-direction:column; gap:4px; border-top:1px solid var(--border,#e3e8ef); padding-top:12px; }
+

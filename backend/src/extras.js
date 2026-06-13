@@ -8,6 +8,7 @@ import { exec } from 'child_process';
 import { adminOnly, authMiddleware } from './auth.js';
 import { notify, setWaSender } from './realtime.js';
 import { handleIncoming, parseInbound } from './chatbot.js';
+import { dispatchAlerta } from './alertas.js';
 import jwt from 'jsonwebtoken';
 
 const __dirX = path.dirname(fileURLToPath(import.meta.url));
@@ -725,7 +726,7 @@ export function mountExtras(app, q) {
     if (requireEquipos && pend > 0) faltan.push(pend + ' equipo(s) sin probar');
     if (faltan.length) return res.status(400).json({ error: 'Faltan requisitos para cerrar', faltan, pendientes: pend });
     const r = await q("UPDATE visitas SET estado='cerrada', cerrada=true, hora_salida=COALESCE(hora_salida, now()), salida_lat=COALESCE($2,salida_lat), salida_lon=COALESCE($3,salida_lon), facturar=COALESCE($4,facturar) WHERE id=$1 RETURNING *", [req.params.id, lat ?? null, lon ?? null, facturar ?? null]);
-    try { const c = await q('SELECT nombre FROM clientes WHERE id=$1', [v.cliente_id]); notify({ type: 'cierre', icon: 'checkCircle', text: 'Visita cerrada: ' + (c.rows[0]?.nombre || ''), url: '/visitas/' + req.params.id }); } catch {}
+    try { const c = await q('SELECT nombre FROM clientes WHERE id=$1', [v.cliente_id]); notify({ type: 'cierre', icon: 'checkCircle', text: 'Visita cerrada: ' + (c.rows[0]?.nombre || ''), url: '/visitas/' + req.params.id }); dispatchAlerta(q, 'visita_cerrada', { titulo: 'Visita cerrada · ' + (c.rows[0]?.nombre || ''), texto: 'El informe está disponible.', url: '/visitas/' + req.params.id, clienteId: v.cliente_id, tecnicoId: v.tecnico_id }).catch(() => {}); } catch {}
     res.json(r.rows[0]);
   }));
 
@@ -1216,6 +1217,7 @@ export function mountExtras(app, q) {
       [b.titulo, b.cliente_id || null, b.prioridad || 'media', b.estado || 'abierto', b.asignado || null, b.descripcion || null,
        b.solicitante || null, b.fecha_max_resolucion || null, (b.facturable === undefined ? null : !!b.facturable), b.presupuesto_crm || null, b.motivo_no_fact || null, b.contrato_id || null]);
     notify({ type: 'ticket', icon: 'alert', text: 'Nuevo ticket: ' + (b.titulo || ''), url: '/tickets' });
+    dispatchAlerta(q, 'ticket_nuevo', { titulo: 'Ticket nuevo · ' + (b.titulo || ''), texto: 'Prioridad ' + (b.prioridad || 'media'), url: '/tickets/' + r.rows[0].id, clienteId: b.cliente_id }).catch(() => {});
     res.status(201).json(r.rows[0]);
   }));
   app.put('/api/tickets/:id', authMiddleware, wrap(async (req, res) => {
