@@ -31,7 +31,8 @@ const CFG_DESC = {
 export default function Catalogos({ user }) {
   const isAdmin = user?.rol === 'admin';
   const [tab, setTab] = useState('tecnicos');
-  const [grupoIdx, setGrupoIdx] = useState(0);
+  const [openGrupo, setOpenGrupo] = useState(null);
+  useEffect(() => { if (openGrupo === null) return; const c = () => setOpenGrupo(null); window.addEventListener('click', c); return () => window.removeEventListener('click', c); }, [openGrupo]);
   const adm = (arr) => isAdmin ? arr : [];
   const GROUPS = [
     { label: 'General', items: [['tecnicos', 'Tecnicos', 'users'], ['sistemas', 'Sistemas', 'box'], ...adm([['proveedores', 'Proveedores', 'pin']])] },
@@ -40,22 +41,24 @@ export default function Catalogos({ user }) {
     { label: 'Usuarios', items: adm([['usuarios', 'Usuarios', 'users'], ['online', 'En linea', 'pin'], ['roles', 'Roles', 'star'], ['permisos', 'Permisos', 'settings']]) },
     { label: 'Sistema', items: adm([['branding', 'Branding', 'star'], ['chatbot', 'Chatbot', 'whatsapp'], ['correo', 'Correo', 'mail'], ['alertas', 'Alertas', 'bell'], ['auditoria', 'Auditoria', 'history'], ['respaldos', 'Respaldos', 'box'], ['actualizar', 'Actualizaciones', 'download']]) },
   ].filter(g => g.items.length);
-  const grupoActivo = GROUPS[Math.min(grupoIdx, GROUPS.length - 1)] || GROUPS[0];
-  const selGrupo = (i) => { setGrupoIdx(i); const g = GROUPS[i]; if (g && !g.items.some(it => it[0] === tab)) setTab(g.items[0][0]); };
+  const onGrupo = (e, i) => { e.stopPropagation(); setOpenGrupo(o => (o === i ? null : i)); };
+  const onItem = (e, k) => { e.stopPropagation(); setTab(k); setOpenGrupo(null); };
 
   return (
     <div>
       <PageHeader icon="settings" title="Configuracion" desc="Administra catalogos, usuarios, roles y permisos del sistema." />
       <div className="cfg-h">
-        <div className="cfg-h-groups">
-          {GROUPS.map((g, i) => (
-            <button key={g.label} className={'cfg-h-grp' + (grupoActivo.label === g.label ? ' active' : '')} onClick={() => selGrupo(i)}>{g.label}</button>
-          ))}
-        </div>
-        <div className="cfg-h-items">
-          {grupoActivo.items.map(([k, l, ic]) => (
-            <button key={k} className={'cfg-h-item' + (tab === k ? ' active' : '')} onClick={() => setTab(k)}><Icon name={ic} size={15} />{l}</button>
-          ))}
+        <div className="cfg-h-bar">
+          {GROUPS.map((g, i) => { const act = g.items.some(it => it[0] === tab); return (
+            <div key={g.label} className="cfg-h-grpwrap">
+              <button className={'cfg-h-grp' + (act ? ' on' : '') + (openGrupo === i ? ' open' : '')} onClick={e => onGrupo(e, i)}>{g.label}</button>
+              {openGrupo === i && <div className="cfg-h-drop" onClick={e => e.stopPropagation()}>
+                {g.items.map(([k, l, ic]) => (
+                  <button key={k} className={'cfg-h-dropitem' + (tab === k ? ' active' : '')} onClick={e => onItem(e, k)}><Icon name={ic} size={15} />{l}</button>
+                ))}
+              </div>}
+            </div>
+          ); })}
         </div>
       </div>
       <div className="cfg-body">
