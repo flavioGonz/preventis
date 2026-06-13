@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import path from 'path';
 import fs from 'fs';
+import { sendMail, buildEmailHtml } from './mailer.js';
 
 // ===== Reportes de Visitas y Tickets (listados + Excel + PDF membretado) =====
 export function mountReportes(app, q) {
@@ -61,9 +62,7 @@ export function mountReportes(app, q) {
     res.json((await q(VISITAS_SQL(where) + ' LIMIT 5000', params)).rows);
   }));
 
-  app.get('/api/reportes/visitas/export.xlsx', wrap(async (req, res) => {
-    const { where, params } = visitasFilter(req.query);
-    const rows = (await q(VISITAS_SQL(where), params)).rows;
+  async function visXlsxBuf(rows) {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Visitas');
     ws.columns = [
@@ -82,31 +81,35 @@ export function mountReportes(app, q) {
     ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
     ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1D4ED8' } };
     rows.forEach(r => ws.addRow({ ...r, fecha: fdate(r.fecha), tipo: TIPO(r.tipo), ticket: r.ticket_id ? 'TK-' + r.ticket_id : '', fmax: fdate(r.fecha_max_resolucion), ffin: r.multidia ? fdate(r.fecha_fin) : '', entrada: fdt(r.hora_entrada), salida: fdt(r.hora_salida) }));
+    return Buffer.from(await wb.xlsx.writeBuffer());
+  }
+  const VIS_PDF_COLS = [
+    { h: 'Fecha', w: 54, get: r => fdate(r.fecha) },
+    { h: 'Cliente', w: 124, get: r => r.cliente },
+    { h: 'Tipo', w: 64, get: r => TIPO(r.tipo) },
+    { h: 'Ticket', w: 44, get: r => r.ticket_id ? 'TK-' + r.ticket_id : '-' },
+    { h: 'Tecnico(s)', w: 116, get: r => r.tecnico },
+    { h: 'Estado', w: 62, get: r => r.estado },
+    { h: 'F.max resol', w: 58, get: r => fdate(r.fecha_max_resolucion) },
+    { h: 'Entrada', w: 82, get: r => fdt(r.hora_entrada) },
+    { h: 'Dias', w: 38, align: 'right', get: r => r.multidia ? (r.dias_trab + '/' + r.dias_plan) : '-' },
+    { h: 'Trabajado', w: 56, align: 'right', get: r => hm(r.trabajado_min) },
+    { h: 'Pru.', w: 34, align: 'right', get: r => r.pruebas },
+    { h: 'Fallas', w: 40, align: 'right', get: r => r.fallas, color: r => r.fallas > 0 ? '#dc2626' : '#0f172a' },
+  ];
+
+  app.get('/api/reportes/visitas/export.xlsx', wrap(async (req, res) => {
+    const { where, params } = visitasFilter(req.query);
+    const rows = (await q(VISITAS_SQL(where), params)).rows;
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename="reporte_visitas.xlsx"');
-    res.send(Buffer.from(await wb.xlsx.writeBuffer()));
+    res.send(await visXlsxBuf(rows));
   }));
 
   app.get('/api/reportes/visitas/export.pdf', wrap(async (req, res) => {
     const { where, params } = visitasFilter(req.query);
     const rows = (await q(VISITAS_SQL(where), params)).rows;
-    await tablePDF(res, {
-      titulo: 'Reporte de visitas', subtitulo: rangoTxt(req.query) + '  ·  ' + rows.length + ' visitas', filename: 'reporte_visitas.pdf', rows,
-      columns: [
-        { h: 'Fecha', w: 54, get: r => fdate(r.fecha) },
-        { h: 'Cliente', w: 124, get: r => r.cliente },
-        { h: 'Tipo', w: 64, get: r => TIPO(r.tipo) },
-        { h: 'Ticket', w: 44, get: r => r.ticket_id ? 'TK-' + r.ticket_id : '-' },
-        { h: 'Tecnico(s)', w: 116, get: r => r.tecnico },
-        { h: 'Estado', w: 62, get: r => r.estado },
-        { h: 'F.max resol', w: 58, get: r => fdate(r.fecha_max_resolucion) },
-        { h: 'Entrada', w: 82, get: r => fdt(r.hora_entrada) },
-        { h: 'Dias', w: 38, align: 'right', get: r => r.multidia ? (r.dias_trab + '/' + r.dias_plan) : '-' },
-        { h: 'Trabajado', w: 56, align: 'right', get: r => hm(r.trabajado_min) },
-        { h: 'Pru.', w: 34, align: 'right', get: r => r.pruebas },
-        { h: 'Fallas', w: 40, align: 'right', get: r => r.fallas, color: r => r.fallas > 0 ? '#dc2626' : '#0f172a' },
-      ],
-    });
+    await tablePDF(res, { titulo: 'Reporte de visitas', subtitulo: rangoTxt(req.query) + '  ·  ' + rows.length + ' visitas', filename: 'reporte_visitas.pdf', rows, columns: VIS_PDF_COLS });
   }));
 
   // ---------------- TICKETS ----------------
@@ -132,9 +135,7 @@ export function mountReportes(app, q) {
     res.json((await q(TICKETS_SQL(where) + ' LIMIT 5000', params)).rows);
   }));
 
-  app.get('/api/reportes/tickets/export.xlsx', wrap(async (req, res) => {
-    const { where, params } = ticketsFilter(req.query);
-    const rows = (await q(TICKETS_SQL(where), params)).rows;
+  async function tktXlsxBuf(rows) {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Tickets');
     ws.columns = [
@@ -149,32 +150,68 @@ export function mountReportes(app, q) {
     ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
     ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1D4ED8' } };
     rows.forEach(r => ws.addRow({ ...r, creado: fdt(r.created_at), limite: fdate(r.fecha_max_resolucion), facturable: r.facturable === true ? 'Si' : r.facturable === false ? 'No' : '' }));
+    return Buffer.from(await wb.xlsx.writeBuffer());
+  }
+  const TKT_PDF_COLS = [
+    { h: 'N', w: 36, get: r => 'TK-' + r.id },
+    { h: 'Titulo', w: 124, get: r => r.titulo },
+    { h: 'Cliente', w: 92, get: r => r.cliente },
+    { h: 'Prior.', w: 46, get: r => r.prioridad },
+    { h: 'Estado', w: 64, get: r => r.estado },
+    { h: 'Solicitante', w: 74, get: r => r.solicitante },
+    { h: 'Asignado', w: 74, get: r => r.asignado },
+    { h: 'Creado', w: 52, get: r => fdate(r.created_at) },
+    { h: 'F.max', w: 52, get: r => fdate(r.fecha_max_resolucion) },
+    { h: 'Fact.', w: 36, get: r => r.facturable === true ? 'Si' : r.facturable === false ? 'No' : '-' },
+    { h: 'Nro CRM', w: 56, get: r => r.presupuesto_crm },
+    { h: 'Motivo no fact.', w: 100, get: r => r.motivo_no_fact },
+    { h: 'Resol.', w: 40, align: 'right', get: r => r.horas_resolucion != null ? r.horas_resolucion + 'h' : '-' },
+  ];
+
+  app.get('/api/reportes/tickets/export.xlsx', wrap(async (req, res) => {
+    const { where, params } = ticketsFilter(req.query);
+    const rows = (await q(TICKETS_SQL(where), params)).rows;
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename="reporte_tickets.xlsx"');
-    res.send(Buffer.from(await wb.xlsx.writeBuffer()));
+    res.send(await tktXlsxBuf(rows));
   }));
 
   app.get('/api/reportes/tickets/export.pdf', wrap(async (req, res) => {
     const { where, params } = ticketsFilter(req.query);
     const rows = (await q(TICKETS_SQL(where), params)).rows;
-    await tablePDF(res, {
-      titulo: 'Reporte de tickets', subtitulo: rangoTxt(req.query) + '  ·  ' + rows.length + ' tickets', filename: 'reporte_tickets.pdf', rows,
-      columns: [
-        { h: 'N', w: 36, get: r => 'TK-' + r.id },
-        { h: 'Titulo', w: 124, get: r => r.titulo },
-        { h: 'Cliente', w: 92, get: r => r.cliente },
-        { h: 'Prior.', w: 46, get: r => r.prioridad },
-        { h: 'Estado', w: 64, get: r => r.estado },
-        { h: 'Solicitante', w: 74, get: r => r.solicitante },
-        { h: 'Asignado', w: 74, get: r => r.asignado },
-        { h: 'Creado', w: 52, get: r => fdate(r.created_at) },
-        { h: 'F.max', w: 52, get: r => fdate(r.fecha_max_resolucion) },
-        { h: 'Fact.', w: 36, get: r => r.facturable === true ? 'Si' : r.facturable === false ? 'No' : '-' },
-        { h: 'Nro CRM', w: 56, get: r => r.presupuesto_crm },
-        { h: 'Motivo no fact.', w: 100, get: r => r.motivo_no_fact },
-        { h: 'Resol.', w: 40, align: 'right', get: r => r.horas_resolucion != null ? r.horas_resolucion + 'h' : '-' },
-      ],
-    });
+    await tablePDF(res, { titulo: 'Reporte de tickets', subtitulo: rangoTxt(req.query) + '  ·  ' + rows.length + ' tickets', filename: 'reporte_tickets.pdf', rows, columns: TKT_PDF_COLS });
+  }));
+
+  // ---- Enviar un reporte por email (PDF o Excel adjunto) ----
+  async function reporteAdjunto(tipo, formato, query) {
+    if (tipo === 'visitas') {
+      const { where, params } = visitasFilter(query);
+      const rows = (await q(VISITAS_SQL(where), params)).rows;
+      if (formato === 'xlsx') return { buf: await visXlsxBuf(rows), filename: 'reporte_visitas.xlsx', ctype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', n: rows.length, titulo: 'Reporte de visitas' };
+      return { buf: await tablePDF(null, { titulo: 'Reporte de visitas', subtitulo: rangoTxt(query) + '  ·  ' + rows.length + ' visitas', rows, columns: VIS_PDF_COLS }), filename: 'reporte_visitas.pdf', ctype: 'application/pdf', n: rows.length, titulo: 'Reporte de visitas' };
+    }
+    if (tipo === 'tickets') {
+      const { where, params } = ticketsFilter(query);
+      const rows = (await q(TICKETS_SQL(where), params)).rows;
+      if (formato === 'xlsx') return { buf: await tktXlsxBuf(rows), filename: 'reporte_tickets.xlsx', ctype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', n: rows.length, titulo: 'Reporte de tickets' };
+      return { buf: await tablePDF(null, { titulo: 'Reporte de tickets', subtitulo: rangoTxt(query) + '  ·  ' + rows.length + ' tickets', rows, columns: TKT_PDF_COLS }), filename: 'reporte_tickets.pdf', ctype: 'application/pdf', n: rows.length, titulo: 'Reporte de tickets' };
+    }
+    return null;
+  }
+
+  app.post('/api/reportes/:tipo/email', wrap(async (req, res) => {
+    const tipo = req.params.tipo;
+    if (!['visitas', 'tickets'].includes(tipo)) return res.status(400).json({ error: 'Tipo invalido' });
+    const to = (req.body || {}).to;
+    if (!to) return res.status(400).json({ error: 'Indicá un destinatario' });
+    const formato = ((req.body || {}).formato === 'xlsx') ? 'xlsx' : 'pdf';
+    const rep = await reporteAdjunto(tipo, formato, req.query);
+    if (!rep) return res.status(400).json({ error: 'No se pudo generar el reporte' });
+    try {
+      const built = await buildEmailHtml(q, { heading: rep.titulo, lead: 'Adjuntamos el ' + rep.titulo.toLowerCase() + ' (' + rep.n + ' registros · ' + rangoTxt(req.query) + ').', paragraphs: [((req.body || {}).mensaje || '').trim() || 'Saludos.'], footerNote: 'Reporte generado automáticamente.' });
+      await sendMail(q, { to, subject: rep.titulo, html: built.html, attachments: [...built.attachments, { filename: rep.filename, content: rep.buf, contentType: rep.ctype }] });
+      res.json({ ok: true, to });
+    } catch (e) { res.status(400).json({ error: e.message }); }
   }));
 
   // ---------------- Generador genérico de PDF tabular (membretado) ----------------
@@ -232,8 +269,10 @@ export function mountReportes(app, q) {
       doc.text('Pagina ' + (i + 1) + ' de ' + range.count, ML + CW / 2, H - 24, { width: CW / 2, align: 'right', lineBreak: false });
     }
     doc.end(); await done;
+    const out = Buffer.concat(chunks);
+    if (!res) return out;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'inline; filename="' + filename + '"');
-    res.send(Buffer.concat(chunks));
+    res.send(out);
   }
 }

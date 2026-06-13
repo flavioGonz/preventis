@@ -134,6 +134,12 @@ function RepEquipos() {
 }
 
 // ====================== REPORTE: VISITAS ======================
+async function emailRep(tipo, params) {
+  const to = prompt('Enviar el reporte por email a:'); if (!to || !to.trim()) return;
+  try { await api.post('/api/reportes/' + tipo + '/email?' + params(), { to: to.trim(), formato: 'pdf' }); toast.ok('Reporte enviado a ' + to.trim()); }
+  catch (e) { toast.err(e.message); }
+}
+
 function RepVisitas() {
   const [clientes, setClientes] = useState([]);
   const [tecnicos, setTecnicos] = useState([]);
@@ -164,6 +170,7 @@ function RepVisitas() {
         <button className={'btn-filter' + (activos ? ' on' : '')} onClick={() => setSheet(true)}><Icon name="filter" size={16} />Filtros{activos ? <span className="fc">{activos}</span> : null}</button>
         <a className="btn ghost" href={api.fileUrl('/api/reportes/visitas/export.xlsx?' + params())}><Icon name="download" size={16} />Excel</a>
         <a className="btn ghost" target="_blank" rel="noreferrer" href={api.fileUrl('/api/reportes/visitas/export.pdf?' + params())}><Icon name="file" size={16} />PDF</a>
+        <button className="btn ghost" onClick={() => emailRep('visitas', params)}><Icon name="mail" size={16} />Email</button>
       </div>
 
       {rows !== null && <div className="tkl-stats">
@@ -249,6 +256,7 @@ function RepTickets() {
         <button className={'btn-filter' + (activos ? ' on' : '')} onClick={() => setSheet(true)}><Icon name="filter" size={16} />Filtros{activos ? <span className="fc">{activos}</span> : null}</button>
         <a className="btn ghost" href={api.fileUrl('/api/reportes/tickets/export.xlsx?' + params())}><Icon name="download" size={16} />Excel</a>
         <a className="btn ghost" target="_blank" rel="noreferrer" href={api.fileUrl('/api/reportes/tickets/export.pdf?' + params())}><Icon name="file" size={16} />PDF</a>
+        <button className="btn ghost" onClick={() => emailRep('tickets', params)}><Icon name="mail" size={16} />Email</button>
       </div>
 
       {rows !== null && <div className="tkl-stats">
