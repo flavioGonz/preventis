@@ -1,7 +1,10 @@
 // Correo saliente (SMTP) — configuración cifrada + envío reutilizable.
 // La contraseña SMTP se guarda cifrada con AES-256-GCM (misma clave derivada que credenciales/2FA).
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import nodemailer from 'nodemailer';
+import mjml2html from 'mjml';
 import { authMiddleware, adminOnly } from './auth.js';
 
 const KEY = crypto.createHash('sha256').update(process.env.CRED_KEY || process.env.JWT_SECRET || 'preventis-cred-default').digest();
@@ -30,6 +33,41 @@ export async function sendMail(q, { to, subject, html, text, attachments }) {
   if (!tr) throw new Error('Falta configurar el servidor de correo');
   const from = cfg.from_name ? `${cfg.from_name} <${cfg.from || cfg.user}>` : (cfg.from || cfg.user);
   return tr.sendMail({ from, to, subject, html, text, attachments });
+}
+
+// ---- Plantilla de email branded (MJML) ----
+async function getBrand(q) { try { const r = (await q("SELECT valor FROM app_config WHERE clave='branding'")).rows[0]; return r?.valor || {}; } catch { return {}; } }
+function brandLogoPath(brand) {
+  if (brand.logo_path) { const p = path.join('/opt/preventis/backend/uploads', path.basename(brand.logo_path)); if (fs.existsSync(p)) return p; }
+  for (const p of ['/opt/preventis/frontend/public/logo.png', '/opt/preventis/frontend/dist/logo.png', '/opt/preventis/frontend/public/logo_es.png']) { if (fs.existsSync(p)) return p; }
+  return null;
+}
+const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+// Devuelve { html, attachments } listo para sendMail. paragraphs: string[]
+export async function buildEmailHtml(q, { heading, lead, paragraphs = [], ctaText, ctaUrl, footerNote } = {}) {
+  const brand = await getBrand(q);
+  const empresa = brand.pdf_empresa || brand.empresa || brand.app_nombre || 'Preventis';
+  const color = brand.color || '#2563eb';
+  const logo = brandLogoPath(brand);
+  const attachments = [];
+  let logoBlock = `<mj-text font-size="20px" font-weight="bold" color="${color}" padding="0">${esc(empresa)}</mj-text>`;
+  if (logo) { attachments.push({ filename: 'logo' + (path.extname(logo) || '.png'), path: logo, cid: 'brandlogo' }); logoBlock = `<mj-image width="150px" align="left" padding="0" src="cid:brandlogo" />`; }
+  const paras = (paragraphs || []).map(p => `<mj-text font-size="14px" color="#334155" line-height="22px" padding="6px 0 0">${esc(p)}</mj-text>`).join('');
+  const cta = (ctaText && ctaUrl) ? `<mj-button background-color="${color}" color="#ffffff" border-radius="8px" href="${esc(ctaUrl)}" align="left" padding="16px 0 0">${esc(ctaText)}</mj-button>` : '';
+  const mjml = `<mjml><mj-body background-color="#f1f5f9">
+    <mj-section padding="22px 0 6px"><mj-column>${logoBlock}</mj-column></mj-section>
+    <mj-section background-color="#ffffff" border-radius="14px" padding="30px"><mj-column>
+      ${heading ? `<mj-text font-size="20px" font-weight="bold" color="#0f172a" padding="0 0 6px">${esc(heading)}</mj-text>` : ''}
+      ${lead ? `<mj-text font-size="15px" color="#334155" line-height="23px" padding="0">${esc(lead)}</mj-text>` : ''}
+      ${paras}${cta}
+    </mj-column></mj-section>
+    <mj-section padding="12px 0 24px"><mj-column>
+      <mj-text font-size="11px" color="#94a3b8" align="center" line-height="17px">${esc(empresa)} · ${esc(footerNote || 'Correo automático, no respondas a esta dirección.')}</mj-text>
+    </mj-column></mj-section>
+  </mj-body></mjml>`;
+  const out = mjml2html(mjml, { validationLevel: 'soft' });
+  return { html: out.html, attachments };
 }
 
 export function mountEmail(app, q) {

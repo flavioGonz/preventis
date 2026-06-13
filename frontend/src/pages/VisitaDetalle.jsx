@@ -24,6 +24,7 @@ export default function VisitaDetalle({ user }) {
   const [scanOpen, setScanOpen] = useState(false);
   const [firmaOpen, setFirmaOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [enviandoMail, setEnviandoMail] = useState(false);
   const [eqFilterOpen, setEqFilterOpen] = useState(false);
   const [usuarios, setUsuarios] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -213,6 +214,15 @@ export default function VisitaDetalle({ user }) {
     const link = location.origin + (kind === 'pdf' ? '/api/visitas/' + id + '/informe.pdf' : '/api/visitas/' + id + '/pruebas/export.xlsx');
     window.open('https://wa.me/?text=' + encodeURIComponent('Informe de mantenimiento ' + (visita.cliente || '') + ': ' + link), '_blank');
     setExportOpen(false);
+  };
+
+  const enviarEmail = async () => {
+    const to = prompt('Email del destinatario (dejá vacío para usar el del cliente):', '');
+    if (to === null) return;
+    setEnviandoMail(true);
+    try { const r = await api.post('/api/visitas/' + id + '/enviar-email', { to: (to || '').trim() || undefined }); toast.ok('Informe enviado a ' + r.to); setExportOpen(false); }
+    catch (e) { toast.err(e.message); }
+    setEnviandoMail(false);
   };
 
   return (
@@ -416,6 +426,7 @@ export default function VisitaDetalle({ user }) {
       <Drawer open={exportOpen} onClose={() => setExportOpen(false)} title="Exportar y compartir" side="bottom">
         <div className="stack" style={{ gap: 8 }}>
           <a className="exp-opt" target="_blank" rel="noreferrer" href={api.fileUrl('/api/visitas/' + id + '/informe.pdf')} onClick={() => setExportOpen(false)}><span className="ico" style={{ background: 'var(--falla-bg)', color: 'var(--falla)' }}><Icon name="printer" size={17} /></span><div className="grow"><b>Informe PDF</b><div className="muted" style={{ fontSize: 12.5 }}>Ver o descargar</div></div><Icon name="chevronRight" size={16} color="var(--subtle)" /></a>
+          <button className="exp-opt" onClick={enviarEmail} disabled={enviandoMail}><span className="ico" style={{ background: 'var(--brand-soft)', color: 'var(--brand-600)' }}><Icon name="mail" size={17} /></span><div className="grow"><b>{enviandoMail ? 'Enviando...' : 'Enviar por email'}</b><div className="muted" style={{ fontSize: 12.5 }}>Manda el informe PDF al cliente</div></div><Icon name="chevronRight" size={16} color="var(--subtle)" /></button>
           <button className="exp-opt" onClick={() => shareFile('pdf')}><span className="ico" style={{ background: '#dcfce7', color: '#15803d' }}><Icon name="share" size={17} /></span><div className="grow"><b>Compartir PDF</b><div className="muted" style={{ fontSize: 12.5 }}>WhatsApp, mail, etc.</div></div><Icon name="chevronRight" size={16} color="var(--subtle)" /></button>
           <a className="exp-opt" href={api.fileUrl('/api/visitas/' + id + '/pruebas/export.xlsx')} onClick={() => setExportOpen(false)}><span className="ico" style={{ background: '#dcfce7', color: '#166534' }}><Icon name="download" size={17} /></span><div className="grow"><b>Excel de pruebas</b><div className="muted" style={{ fontSize: 12.5 }}>Descargar planilla</div></div><Icon name="chevronRight" size={16} color="var(--subtle)" /></a>
           <button className="exp-opt" onClick={() => shareFile('xlsx')}><span className="ico" style={{ background: '#dcfce7', color: '#15803d' }}><Icon name="share" size={17} /></span><div className="grow"><b>Compartir Excel</b><div className="muted" style={{ fontSize: 12.5 }}>WhatsApp, mail, etc.</div></div><Icon name="chevronRight" size={16} color="var(--subtle)" /></button>

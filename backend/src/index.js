@@ -14,7 +14,7 @@ import { mountChatbot, ensureChatbotSchema } from './chatbot.js';
 import { mountExtras } from './extras.js';
 import { mountReportes } from './reportes.js';
 import { mountOTA } from './ota.js';
-import { mountEmail } from './mailer.js';
+import { mountEmail, sendMail, buildEmailHtml } from './mailer.js';
 import http from 'http';
 import { Server as SocketServer } from 'socket.io';
 import { setIO, notify, recentEvents } from './realtime.js';
@@ -440,6 +440,30 @@ app.get('/api/visitas/:id/pruebas/export.xlsx', wrap(async (req, res) => {
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename="pruebas_visita_${req.params.id}.xlsx"`);
   res.send(buf);
+}));
+
+// Enviar el informe PDF de una visita por email (al cliente)
+app.post('/api/visitas/:id/enviar-email', wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const v = (await q('SELECT v.*, c.nombre AS cliente FROM visitas v LEFT JOIN clientes c ON c.id=v.cliente_id WHERE v.id=$1', [id])).rows[0];
+  if (!v) return res.status(404).json({ error: 'Visita no encontrada' });
+  let to = (req.body || {}).to;
+  if (!to) { const c = (await q("SELECT email FROM cliente_contactos WHERE cliente_id=$1 AND email IS NOT NULL AND email<>'' ORDER BY id LIMIT 1", [v.cliente_id])).rows[0]; to = c?.email; }
+  if (!to) return res.status(400).json({ error: 'Indicá un destinatario (el cliente no tiene email cargado)' });
+  const pdf = await buildInformePDF(id, UPLOAD_DIR);
+  const fecha = v.fecha ? new Date(v.fecha).toLocaleDateString('es-UY') : '';
+  const { html, attachments } = await buildEmailHtml(q, {
+    heading: 'Informe de mantenimiento',
+    lead: `Adjuntamos el informe de la visita de mantenimiento realizada${v.cliente ? ' en ' + v.cliente : ''}${fecha ? ' el ' + fecha : ''}.`,
+    paragraphs: [((req.body || {}).mensaje || '').trim() || 'Ante cualquier consulta quedamos a disposición.'],
+    footerNote: 'Informe generado automáticamente por el sistema de mantenimientos.',
+  });
+  attachments.push({ filename: `informe_visita_${String(id).padStart(5, '0')}.pdf`, content: pdf, contentType: 'application/pdf' });
+  try {
+    await sendMail(q, { to, subject: `Informe de mantenimiento${v.cliente ? ' · ' + v.cliente : ''}${fecha ? ' · ' + fecha : ''}`, html, attachments });
+    q("INSERT INTO auditoria (usuario,rol,metodo,ruta,status,detalle) VALUES ($1,$2,'OUT','/visitas/email',200,$3)", [req.user?.username || '?', req.user?.rol || '?', (to + ' :: informe V-' + id).slice(0, 300)]).catch(() => {});
+    res.json({ ok: true, to });
+  } catch (e) { res.status(400).json({ error: e.message }); }
 }));
 
 app.get('/api/notificaciones', wrap(async (req, res) => { res.json(recentEvents()); }));
