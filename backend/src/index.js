@@ -14,6 +14,7 @@ import { mountChatbot, ensureChatbotSchema } from './chatbot.js';
 import { mountExtras } from './extras.js';
 import { mountReportes } from './reportes.js';
 import { mountOTA } from './ota.js';
+import { mountEmail } from './mailer.js';
 import http from 'http';
 import { Server as SocketServer } from 'socket.io';
 import { setIO, notify, recentEvents } from './realtime.js';
@@ -34,6 +35,7 @@ mountChatbot(app, q);
 mountExtras(app, q);
 mountReportes(app, q);
 mountOTA(app, q);
+mountEmail(app, q);
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),

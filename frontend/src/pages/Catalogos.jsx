@@ -16,7 +16,7 @@ export default function Catalogos({ user }) {
     { label: 'Dispositivos', items: [['tipos_elemento', 'Tipos de elementos', 'list'], ['estados_equipo', 'Estado de equipos', 'alert'], ...adm([['equipos_estandar', 'Equipos estandar', 'camera']])] },
     { label: 'Mi cuenta', items: [['seguridad', 'Seguridad (2FA)', 'checkCircle']] },
     { label: 'Usuarios', items: adm([['usuarios', 'Usuarios', 'users'], ['online', 'En linea', 'pin'], ['roles', 'Roles', 'star'], ['permisos', 'Permisos', 'settings']]) },
-    { label: 'Sistema', items: adm([['branding', 'Branding', 'star'], ['chatbot', 'Chatbot', 'whatsapp'], ['auditoria', 'Auditoria', 'history'], ['respaldos', 'Respaldos', 'box'], ['actualizar', 'Actualizaciones', 'download']]) },
+    { label: 'Sistema', items: adm([['branding', 'Branding', 'star'], ['chatbot', 'Chatbot', 'whatsapp'], ['correo', 'Correo', 'mail'], ['auditoria', 'Auditoria', 'history'], ['respaldos', 'Respaldos', 'box'], ['actualizar', 'Actualizaciones', 'download']]) },
   ].filter(g => g.items.length);
 
   return (
@@ -47,6 +47,7 @@ export default function Catalogos({ user }) {
           {tab === 'permisos' && isAdmin && <Permisos />}
           {tab === 'branding' && isAdmin && <Branding />}
           {tab === 'chatbot' && isAdmin && <ChatbotPanel />}
+          {tab === 'correo' && isAdmin && <Correo />}
           {tab === 'auditoria' && isAdmin && <Auditoria />}
           {tab === 'respaldos' && isAdmin && <Respaldos />}
           {tab === 'actualizar' && isAdmin && <Actualizaciones />}
@@ -776,6 +777,47 @@ function OTAModal({ onClose, onDone }) {
             <button className="btn ghost block" onClick={onClose}>Cerrar</button>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function Correo() {
+  const [f, setF] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [pass, setPass] = useState('');
+  const [to, setTo] = useState('');
+  const [testing, setTesting] = useState(false);
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const load = () => api.get('/api/email/config').then(setF);
+  useEffect(() => { load(); }, []);
+  const guardar = async () => { setSaving(true); try { await api.put('/api/email/config', { ...f, pass: pass || undefined }); setPass(''); toast.ok('Configuracion guardada'); load(); } catch (e) { toast.err(e.message); } setSaving(false); };
+  const probar = async () => { if (!to.trim()) { toast.err('Indica un destinatario'); return; } setTesting(true); try { await api.post('/api/email/test', { to: to.trim() }); toast.ok('Correo de prueba enviado a ' + to); } catch (e) { toast.err(e.message); } setTesting(false); };
+  if (!f) return <Loading rows={3} />;
+  const L = (icon, txt) => <span className="flabel"><Icon name={icon} size={13} />{txt}</span>;
+  return (
+    <div style={{ maxWidth: 580 }}>
+      <div className="brd-sec">
+        <div className="brd-sec-h"><Icon name="mail" size={15} />Servidor de correo (SMTP)</div>
+        <div className="grid2">
+          <Field label={L('line', 'Servidor (host)')}><input value={f.host || ''} onChange={e => set('host', e.target.value)} placeholder="smtp.gmail.com" /></Field>
+          <Field label={L('settings', 'Puerto')}><input type="number" value={f.port || 587} onChange={e => set('port', Number(e.target.value))} placeholder="587" /></Field>
+          <Field label={L('users', 'Usuario')}><input value={f.user || ''} onChange={e => set('user', e.target.value)} placeholder="no-reply@dominio" /></Field>
+          <Field label={L('lock', 'Clave / App Password')}><input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder={f.has_pass ? '•••••• (sin cambios)' : 'pega la App Password'} /></Field>
+          <Field label={L('mail', 'Remitente (from)')}><input value={f.from || ''} onChange={e => set('from', e.target.value)} placeholder="no-reply@dominio" /></Field>
+          <Field label={L('star', 'Nombre remitente')}><input value={f.from_name || ''} onChange={e => set('from_name', e.target.value)} placeholder="Preventis" /></Field>
+        </div>
+        <label className="chk-row"><input type="checkbox" checked={!!f.secure} onChange={e => set('secure', e.target.checked)} />Conexion SSL directa (puerto 465). Para 587 dejalo destildado (STARTTLS).</label>
+        <label className="chk-row"><input type="checkbox" checked={!!f.enabled} onChange={e => set('enabled', e.target.checked)} />Correo habilitado</label>
+        <button className="btn" onClick={guardar} disabled={saving} style={{ marginTop: 4 }}><Icon name="save" size={15} />{saving ? 'Guardando...' : 'Guardar'}</button>
+      </div>
+      <div className="brd-sec">
+        <div className="brd-sec-h"><Icon name="checkCircle" size={15} />Probar envio</div>
+        <div className="row wrap" style={{ gap: 8 }}>
+          <input style={{ flex: 1, minWidth: 200 }} value={to} onChange={e => setTo(e.target.value)} placeholder="destinatario@correo.com" onKeyDown={e => e.key === 'Enter' && probar()} />
+          <button className="btn sec" onClick={probar} disabled={testing}><Icon name="mail" size={15} />{testing ? 'Enviando...' : 'Enviar prueba'}</button>
+        </div>
+        <div className="muted" style={{ fontSize: 12.5, marginTop: 8 }}>Con Gmail / Google Workspace necesitas una <b>App Password</b> (la clave normal no sirve para SMTP).</div>
       </div>
     </div>
   );
