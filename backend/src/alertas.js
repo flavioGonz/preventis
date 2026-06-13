@@ -10,6 +10,7 @@ export const EVENTOS = [
   { id: 'visita_cerrada', label: 'Visita cerrada', desc: 'Al cerrar una visita (informe listo).', icon: 'checkCircle' },
   { id: 'equipo_falla', label: 'Equipo en falla', desc: 'Cuando una prueba marca un equipo en falla.', icon: 'alert' },
   { id: 'ticket_nuevo', label: 'Ticket nuevo', desc: 'Al crear un ticket de soporte.', icon: 'ticket' },
+  { id: 'ticket_actualizado', label: 'Ticket actualizado', desc: 'Cuando cambia el estado de un ticket.', icon: 'history' },
 ];
 
 async function getCfg(q) { try { const r = (await q("SELECT valor FROM app_config WHERE clave='alertas'")).rows[0]; return r?.valor || {}; } catch { return {}; } }

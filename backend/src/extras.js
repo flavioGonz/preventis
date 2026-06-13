@@ -1222,11 +1222,16 @@ export function mountExtras(app, q) {
   }));
   app.put('/api/tickets/:id', authMiddleware, wrap(async (req, res) => {
     const b = req.body || {};
+    const prev = (await q('SELECT estado, cliente_id FROM tickets WHERE id=$1', [req.params.id])).rows[0] || {};
     const r = await q(`UPDATE tickets SET titulo=$1,cliente_id=$2,prioridad=$3,estado=$4,asignado=$5,descripcion=$6,
        solicitante=$8,fecha_max_resolucion=$9,facturable=$10,presupuesto_crm=$11,motivo_no_fact=$12,contrato_id=$13,updated_at=now() WHERE id=$7 RETURNING *`,
       [b.titulo, b.cliente_id || null, b.prioridad || 'media', b.estado || 'abierto', b.asignado || null, b.descripcion || null, req.params.id,
        b.solicitante || null, b.fecha_max_resolucion || null, (b.facturable === undefined ? null : !!b.facturable), b.presupuesto_crm || null, b.motivo_no_fact || null, b.contrato_id || null]);
-    res.json(r.rows[0] || {});
+    const nt = r.rows[0] || {};
+    if (nt.id && prev.estado && b.estado && b.estado !== prev.estado) {
+      dispatchAlerta(q, 'ticket_actualizado', { titulo: 'Ticket actualizado · ' + (nt.titulo || ''), texto: 'Estado: ' + prev.estado + ' → ' + b.estado, url: '/tickets/' + nt.id, clienteId: nt.cliente_id }).catch(() => {});
+    }
+    res.json(nt);
   }));
   app.delete('/api/tickets/:id', authMiddleware, wrap(async (req, res) => {
     await q('DELETE FROM tickets WHERE id=$1', [req.params.id]); res.json({ ok: true });
