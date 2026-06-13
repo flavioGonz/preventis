@@ -22,7 +22,7 @@ export function PrioIcon({ p, size = 14 }) {
 
 export function TkAvatar({ nombre, src, size = 26 }) {
   if (src) return <img className="tkl-av" style={{ width: size, height: size }} src={api.base + src} alt={nombre || ''} />;
-  if (!nombre) return <span className="tkl-av empty" style={{ width: size, height: size }}><Icon name="users" size={size * 0.5} /></span>;
+  if (!nombre) return <span className="tkl-av empty" style={{ width: size, height: size }}><Icon name="plus" size={size * 0.5} /></span>;
   return <span className="tkl-av ini" style={{ width: size, height: size, fontSize: size * 0.42 }}>{nombre.trim().slice(0, 1).toUpperCase()}</span>;
 }
 
