@@ -25,7 +25,11 @@ export async function dispatchAlerta(q, evento, ctx = {}) {
     const base = all._public_url || process.env.PUBLIC_URL || '';
     const link = absUrl(base, ctx.url);
 
-    if (r.inapp !== false) notify({ type: evento, icon: (EVENTOS.find(e => e.id === evento) || {}).icon || 'bell', text: ctx.titulo + (ctx.texto ? ' · ' + ctx.texto : ''), url: ctx.url || null });
+    const render = (tpl, def) => { const t = (tpl && String(tpl).trim()) ? tpl : def; return String(t || '').replace(/\{titulo\}/g, ctx.titulo || '').replace(/\{texto\}/g, ctx.texto || '').replace(/\{link\}/g, link || ''); };
+    const asunto = render(r.asunto, ctx.titulo);
+    const cuerpo = render(r.cuerpo, ctx.texto);
+
+    if (r.inapp !== false) notify({ type: evento, icon: (EVENTOS.find(e => e.id === evento) || {}).icon || 'bell', text: asunto + (cuerpo && cuerpo !== asunto ? ' · ' + cuerpo : ''), url: ctx.url || null });
 
     let clienteEmail, clienteTel, tecnicoTel;
     if (r.al_cliente && ctx.clienteId) {
@@ -38,8 +42,8 @@ export async function dispatchAlerta(q, evento, ctx = {}) {
       const to = uniqList([...(r.destinatarios || []), r.al_cliente ? clienteEmail : null]);
       if (to.length) {
         try {
-          const built = await buildEmailHtml(q, { heading: ctx.titulo, lead: ctx.texto, ctaText: link ? 'Abrir en Preventis' : null, ctaUrl: link || null, footerNote: 'Alerta automática del sistema de mantenimientos.' });
-          await sendMail(q, { to: to.join(','), subject: ctx.titulo, html: built.html, attachments: built.attachments });
+          const built = await buildEmailHtml(q, { heading: asunto, lead: cuerpo, ctaText: link ? 'Abrir en Preventis' : null, ctaUrl: link || null, footerNote: 'Alerta automática del sistema de mantenimientos.' });
+          await sendMail(q, { to: to.join(','), subject: asunto, html: built.html, attachments: built.attachments });
         } catch (e) { console.error('alerta email:', e.message); }
       }
     }
@@ -47,7 +51,7 @@ export async function dispatchAlerta(q, evento, ctx = {}) {
     if (r.whatsapp) {
       const nums = uniqList([...(r.telefonos || []), r.al_cliente ? clienteTel : null, r.al_tecnico ? tecnicoTel : null]);
       if (nums.length) {
-        const msg = '*' + ctx.titulo + '*' + (ctx.texto ? '\n' + ctx.texto : '') + (link ? '\n' + link : '');
+        const msg = '*' + asunto + '*' + (cuerpo ? '\n' + cuerpo : '') + (link ? '\n' + link : '');
         for (const n of nums) { try { await waSend(q, msg, n); } catch (e) { console.error('alerta wa:', e.message); } }
       }
     }

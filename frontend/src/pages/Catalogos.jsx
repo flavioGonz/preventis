@@ -31,6 +31,7 @@ const CFG_DESC = {
 export default function Catalogos({ user }) {
   const isAdmin = user?.rol === 'admin';
   const [tab, setTab] = useState('tecnicos');
+  const [grupoIdx, setGrupoIdx] = useState(0);
   const adm = (arr) => isAdmin ? arr : [];
   const GROUPS = [
     { label: 'General', items: [['tecnicos', 'Tecnicos', 'users'], ['sistemas', 'Sistemas', 'box'], ...adm([['proveedores', 'Proveedores', 'pin']])] },
@@ -39,22 +40,25 @@ export default function Catalogos({ user }) {
     { label: 'Usuarios', items: adm([['usuarios', 'Usuarios', 'users'], ['online', 'En linea', 'pin'], ['roles', 'Roles', 'star'], ['permisos', 'Permisos', 'settings']]) },
     { label: 'Sistema', items: adm([['branding', 'Branding', 'star'], ['chatbot', 'Chatbot', 'whatsapp'], ['correo', 'Correo', 'mail'], ['alertas', 'Alertas', 'bell'], ['auditoria', 'Auditoria', 'history'], ['respaldos', 'Respaldos', 'box'], ['actualizar', 'Actualizaciones', 'download']]) },
   ].filter(g => g.items.length);
+  const grupoActivo = GROUPS[Math.min(grupoIdx, GROUPS.length - 1)] || GROUPS[0];
+  const selGrupo = (i) => { setGrupoIdx(i); const g = GROUPS[i]; if (g && !g.items.some(it => it[0] === tab)) setTab(g.items[0][0]); };
 
   return (
     <div>
       <PageHeader icon="settings" title="Configuracion" desc="Administra catalogos, usuarios, roles y permisos del sistema." />
-      <div className="cfg">
-        <nav className="cfg-nav">
-          {GROUPS.map(g => (
-            <div key={g.label}>
-              <div className="cfg-group">{g.label}</div>
-              {g.items.map(([k, l, ic]) => (
-                <button key={k} className={'cfg-item' + (tab === k ? ' active' : '')} onClick={() => setTab(k)}><Icon name={ic} size={16} />{l}</button>
-              ))}
-            </div>
+      <div className="cfg-h">
+        <div className="cfg-h-groups">
+          {GROUPS.map((g, i) => (
+            <button key={g.label} className={'cfg-h-grp' + (grupoActivo.label === g.label ? ' active' : '')} onClick={() => selGrupo(i)}>{g.label}</button>
           ))}
-        </nav>
-        <div className="cfg-body">
+        </div>
+        <div className="cfg-h-items">
+          {grupoActivo.items.map(([k, l, ic]) => (
+            <button key={k} className={'cfg-h-item' + (tab === k ? ' active' : '')} onClick={() => setTab(k)}><Icon name={ic} size={15} />{l}</button>
+          ))}
+        </div>
+      </div>
+      <div className="cfg-body">
           {(() => { const a = GROUPS.flatMap(g => g.items).find(it => it[0] === tab); return a ? <div className="cfg-head"><span className="cfg-head-ic"><Icon name={a[2]} size={19} /></span><div><h2>{a[1]}</h2>{CFG_DESC[tab] ? <p>{CFG_DESC[tab]}</p> : null}</div></div> : null; })()}
           {tab === 'tecnicos' && <CrudList tabla="tecnicos" campos={[['nombre', 'Nombre'], ['telefono', 'Telefono']]} avatar />}
           {tab === 'sistemas' && <CrudList tabla="sistemas" campos={[['nombre', 'Nombre']]} icon="box" />}
@@ -75,7 +79,6 @@ export default function Catalogos({ user }) {
           {tab === 'respaldos' && isAdmin && <Respaldos />}
           {tab === 'actualizar' && isAdmin && <Actualizaciones />}
         </div>
-      </div>
     </div>
   );
 }
@@ -882,6 +885,8 @@ function Alertas() {
                 <Field label={L('mail', 'Emails extra (coma)')}><input value={(r.destinatarios || []).join(', ')} onChange={e => setRule(ev.id, 'destinatarios', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} placeholder="a@b.com, c@d.com" /></Field>
                 <Field label={L('whatsapp', 'WhatsApp extra (coma)')}><input value={(r.telefonos || []).join(', ')} onChange={e => setRule(ev.id, 'telefonos', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} placeholder="59899..., 59891..." /></Field>
               </div>
+              <Field label={L('mail', 'Asunto del email (opcional)')}><input value={r.asunto || ''} onChange={e => setRule(ev.id, 'asunto', e.target.value)} placeholder={ev.label} /></Field>
+              <Field label={L('pen', 'Mensaje (opcional · variables: {texto} {link})')}><textarea value={r.cuerpo || ''} onChange={e => setRule(ev.id, 'cuerpo', e.target.value)} placeholder="Vacio = texto automatico" /></Field>
             </div>
           </div>
         ); })}
