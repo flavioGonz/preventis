@@ -12,6 +12,8 @@ export default function Seguridad({ user, embedded }) {
   const [busy, setBusy] = useState(false);
   const [tel, setTel] = useState('');
   const [telBusy, setTelBusy] = useState(false);
+  const [email, setEmail] = useState('');
+  const [emailBusy, setEmailBusy] = useState(false);
   const cargar = () => api.get('/api/2fa/status').then(s => { setSt(s); }).catch(() => setSt({ enabled: false }));
   useEffect(() => { cargar(); }, []);
 
@@ -29,6 +31,16 @@ export default function Seguridad({ user, embedded }) {
   };
   const probarWa = async () => {
     try { await api.post('/api/2fa/whatsapp/test', {}); toast.ok('Mensaje de prueba enviado por WhatsApp'); }
+    catch (err) { toast.err(err.message); }
+  };
+  const guardarEmail = async () => {
+    setEmailBusy(true);
+    try { await api.post('/api/2fa/email', { email }); toast.ok('Email guardado'); setEmail(''); cargar(); }
+    catch (err) { toast.err(err.message); }
+    setEmailBusy(false);
+  };
+  const probarEmail = async () => {
+    try { await api.post('/api/2fa/email/test', {}); toast.ok('Email de prueba enviado'); }
     catch (err) { toast.err(err.message); }
   };
 
@@ -101,6 +113,25 @@ export default function Seguridad({ user, embedded }) {
               {st?.has_phone && <button className="btn ghost" onClick={probarWa}><Icon name="whatsapp" size={15} />Probar envío</button>}
             </div>
             <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>Usa la conexión de WhatsApp configurada en Configuración → Chatbot.</div>
+          </div>
+
+          {/* Email como segundo factor (sirve junto con la app autenticadora) */}
+          <div className="card">
+            <div className="row" style={{ gap: 12, marginBottom: 12 }}>
+              <span className="ph-ic" style={{ width: 44, height: 44, background: '#dbeafe', color: '#2563eb' }}><Icon name="mail" size={22} /></span>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 16 }}>Email como respaldo</div>
+                <div className="muted" style={{ fontSize: 13 }}>
+                  {st?.has_email ? <>Configurado: {st.email_hint}. Podés pedir el código por email al iniciar sesión.</> : 'Cargá tu email para recibir el código por correo como alternativa a la app.'}
+                </div>
+              </div>
+            </div>
+            <div className="row wrap" style={{ gap: 8 }}>
+              <input value={email} onChange={e => setEmail(e.target.value)} placeholder={st?.has_email ? 'Nuevo email' : 'tu@correo.com'} type="email" autoComplete="off" style={{ flex: 1, minWidth: 200 }} />
+              <button className="btn sec" disabled={emailBusy || !email} onClick={guardarEmail}><Icon name="save" size={15} />Guardar</button>
+              {st?.has_email && <button className="btn ghost" onClick={probarEmail}><Icon name="mail" size={15} />Probar envío</button>}
+            </div>
+            <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>Usa el correo SMTP configurado en Configuración → Correo.</div>
           </div>
         </div>
       )}

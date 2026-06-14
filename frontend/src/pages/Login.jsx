@@ -13,6 +13,7 @@ export default function Login() {
   const [pending, setPending] = useState(null);
   const [methods, setMethods] = useState(['totp']);
   const [phoneHint, setPhoneHint] = useState('');
+  const [emailHint, setEmailHint] = useState('');
   const [setupToken, setSetupToken] = useState(null);
 
   const entrar = async (e) => {
@@ -20,7 +21,7 @@ export default function Login() {
     setError(''); setBusy(true);
     try {
       const r = await api.post('/api/auth/login', { username, password });
-      if (r.twofa_required) { setPending(r.pending); setMethods(r.methods || ['totp']); setPhoneHint(r.phone_hint || ''); setStage('2fa'); }
+      if (r.twofa_required) { setPending(r.pending); setMethods(r.methods || ['totp']); setPhoneHint(r.phone_hint || ''); setEmailHint(r.email_hint || ''); setStage('2fa'); }
       else if (r.twofa_setup_required) { setSetupToken(r.setup_token); setStage('setup'); }
       else setSession(r.token, r.user);
     } catch (err) { setError(err.message); }
@@ -32,7 +33,7 @@ export default function Login() {
   if (stage === '2fa') {
     return (
       <div className="login-wrap">
-        <TwoFAChallenge pending={pending} methods={methods} phoneHint={phoneHint}
+        <TwoFAChallenge pending={pending} methods={methods} phoneHint={phoneHint} emailHint={emailHint}
           onVerified={(token, user) => setSession(token, user)} onCancel={volver} />
         <div className="login-foot">IES - Ingenieria en Seguridad</div>
       </div>

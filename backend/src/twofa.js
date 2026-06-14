@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import QRCode from 'qrcode';
 import { authMiddleware, adminOnly, signToken } from './auth.js';
+import { sendMail, buildEmailHtml } from './mailer.js';
 
 const SECRET = process.env.JWT_SECRET || 'preventis-dev-secret-change-me';
 const KEY = crypto.createHash('sha256').update(process.env.CRED_KEY || process.env.JWT_SECRET || 'preventis-cred-default').digest();
@@ -55,6 +56,23 @@ export async function waSend(q, texto, telefono) {
 }
 
 const phoneHint = (t) => { const s = String(t || '').replace(/[^0-9]/g, ''); return s ? '••••' + s.slice(-3) : ''; };
+const emailHint = (e) => { const s = String(e || '').trim(); const i = s.indexOf('@'); if (i < 1) return ''; return s.slice(0, Math.min(2, i)) + '•••' + s.slice(i); };
+
+// ---- OTP por email (en memoria, 10 min) ----
+const emailCodes = new Map(); // userId -> { code, exp }
+function setEmail(userId) { const code = String(Math.floor(100000 + Math.random() * 900000)); emailCodes.set(userId, { code, exp: Date.now() + 10 * 60000 }); return code; }
+function checkEmail(userId, code) { const e = emailCodes.get(userId); if (!e || Date.now() > e.exp) return false; if (String(code).replace(/\s/g, '') === e.code) { emailCodes.delete(userId); return true; } return false; }
+
+// Envia el codigo de acceso por email usando la plantilla branded MJML.
+async function sendEmailCode(q, email, code) {
+  const built = await buildEmailHtml(q, {
+    heading: 'Tu código de acceso',
+    lead: 'Usá este código para completar tu ingreso a Preventis. Vence en 10 minutos.',
+    paragraphs: ['Código: <b style="font-size:22px;letter-spacing:3px">' + code + '</b>'],
+    footerNote: 'Si no intentaste ingresar, ignorá este correo.',
+  });
+  return sendMail(q, { to: email, subject: 'Preventis · código de acceso ' + code, html: built.html, attachments: built.attachments });
+}
 
 export async function ensure2FASchema(q) {
   await q(`
@@ -63,6 +81,7 @@ export async function ensure2FASchema(q) {
     ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS twofa_temp text;
     ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS twofa_backup jsonb NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefono text;
+    ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email text;
     ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS last_seen timestamptz;`);
 }
 
@@ -116,8 +135,8 @@ export function mount2FA(app, q) {
   });
 
   app.get('/api/2fa/status', authMiddleware, async (req, res) => {
-    const r = await q('SELECT twofa_enabled, telefono FROM usuarios WHERE id=$1', [req.user.id]);
-    res.json({ enabled: !!r.rows[0]?.twofa_enabled, has_phone: !!r.rows[0]?.telefono, phone_hint: phoneHint(r.rows[0]?.telefono) });
+    const r = await q('SELECT twofa_enabled, telefono, email FROM usuarios WHERE id=$1', [req.user.id]);
+    res.json({ enabled: !!r.rows[0]?.twofa_enabled, has_phone: !!r.rows[0]?.telefono, phone_hint: phoneHint(r.rows[0]?.telefono), has_email: !!r.rows[0]?.email, email_hint: emailHint(r.rows[0]?.email) });
   });
 
   // Guardar/actualizar el numero de WhatsApp para el segundo factor por WhatsApp.
@@ -139,6 +158,28 @@ export function mount2FA(app, q) {
       if (!ok) return res.status(502).json({ error: 'No se pudo enviar. Revisa la configuracion del chatbot (Configuracion > Chatbot).' });
       res.json({ ok: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Guardar/actualizar el email para el segundo factor por correo.
+  app.post('/api/2fa/email', authMiddleware, async (req, res) => {
+    try {
+      const em = (req.body?.email || '').toString().trim().toLowerCase() || null;
+      if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return res.status(400).json({ error: 'Email inválido' });
+      await q('UPDATE usuarios SET email=$1 WHERE id=$2', [em, req.user.id]);
+      res.json({ ok: true, has_email: !!em, email_hint: emailHint(em) });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Enviar un email de prueba para validar la configuracion de correo.
+  app.post('/api/2fa/email/test', authMiddleware, async (req, res) => {
+    try {
+      const r = await q('SELECT email FROM usuarios WHERE id=$1', [req.user.id]);
+      const em = r.rows[0]?.email;
+      if (!em) return res.status(400).json({ error: 'Primero guardá tu email' });
+      const built = await buildEmailHtml(q, { heading: 'Email de prueba', lead: 'Si recibís este mensaje, tu correo quedó listo como segundo factor de acceso a Preventis.', footerNote: 'Verificación en dos pasos · Preventis.' });
+      await sendMail(q, { to: em, subject: 'Preventis · prueba de verificación por email', html: built.html, attachments: built.attachments });
+      res.json({ ok: true });
+    } catch (e) { res.status(502).json({ error: 'No se pudo enviar. Revisá Configuración › Correo. ' + e.message }); }
   });
 
   // Desactivar (requiere contrasena actual)
@@ -184,6 +225,18 @@ export function mount2FA(app, q) {
     } catch { res.status(401).json({ error: 'Sesion de login expirada, vuelve a ingresar.' }); }
   });
 
+  app.post('/api/auth/2fa/email', async (req, res) => {
+    try {
+      const u = await pendingUser(req.body?.pending);
+      if (!u || !u.email) return res.status(400).json({ error: 'No hay email configurado.' });
+      if (!waResendOk('e' + u.id)) return res.status(429).json({ error: 'Demasiados envios de codigo. Espera unos minutos.' });
+      const code = setEmail(u.id);
+      try { await sendEmailCode(q, u.email, code); }
+      catch (e) { return res.status(502).json({ error: 'No se pudo enviar el email. Usa la app autenticadora.' }); }
+      res.json({ ok: true, email_hint: emailHint(u.email) });
+    } catch { res.status(401).json({ error: 'Sesion de login expirada, vuelve a ingresar.' }); }
+  });
+
   app.post('/api/auth/2fa/verify', async (req, res) => {
     try {
       const { pending, code, type } = req.body || {};
@@ -194,6 +247,7 @@ export function mount2FA(app, q) {
       if (vwait) return res.status(429).json({ error: 'Demasiados intentos. Espera ' + Math.ceil(vwait / 60) + ' minuto(s).' });
       let ok = false;
       if (type === 'whatsapp') ok = checkWa(u.id, code);
+      else if (type === 'email') ok = checkEmail(u.id, code);
       else if (type === 'backup') {
         const h = hashCode(code); const list = Array.isArray(u.twofa_backup) ? u.twofa_backup : [];
         if (list.includes(h)) { ok = true; await q('UPDATE usuarios SET twofa_backup=$1 WHERE id=$2', [JSON.stringify(list.filter(x => x !== h)), u.id]); }

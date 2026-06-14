@@ -18,16 +18,23 @@ async function call(url, body, token) {
 }
 
 // Paso 2 del login: ingresar el codigo (TOTP / WhatsApp / respaldo).
-export function TwoFAChallenge({ pending, methods = ['totp'], phoneHint, onVerified, onCancel }) {
+export function TwoFAChallenge({ pending, methods = ['totp'], phoneHint, emailHint, onVerified, onCancel }) {
   const [code, setCode] = useState('');
-  const [tipo, setTipo] = useState('totp'); // totp | whatsapp | backup
+  const [tipo, setTipo] = useState('totp'); // totp | whatsapp | email | backup
   const [busy, setBusy] = useState(false);
   const [waSent, setWaSent] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
   const [err, setErr] = useState('');
 
   const enviarWa = async () => {
     setErr(''); setBusy(true);
     try { const r = await call('/api/auth/2fa/whatsapp', { pending }); setTipo('whatsapp'); setWaSent(true); toast.ok('Código enviado por WhatsApp a ' + (r.phone_hint || '')); }
+    catch (e) { setErr(e.message); }
+    setBusy(false);
+  };
+  const enviarEmail = async () => {
+    setErr(''); setBusy(true);
+    try { const r = await call('/api/auth/2fa/email', { pending }); setTipo('email'); setEmailSent(true); setCode(''); toast.ok('Código enviado por email a ' + (r.email_hint || '')); }
     catch (e) { setErr(e.message); }
     setBusy(false);
   };
@@ -38,7 +45,7 @@ export function TwoFAChallenge({ pending, methods = ['totp'], phoneHint, onVerif
     setBusy(false);
   };
 
-  const titulo = tipo === 'backup' ? 'Código de respaldo' : tipo === 'whatsapp' ? 'Código por WhatsApp' : 'Código de la app';
+  const titulo = tipo === 'backup' ? 'Código de respaldo' : tipo === 'whatsapp' ? 'Código por WhatsApp' : tipo === 'email' ? 'Código por email' : 'Código de la app';
   return (
     <form className="login-card" onSubmit={verificar}>
       <div style={{ textAlign: 'center', marginBottom: 16 }}>
@@ -48,7 +55,8 @@ export function TwoFAChallenge({ pending, methods = ['totp'], phoneHint, onVerif
       <div className="muted" style={{ fontSize: 13, marginBottom: 18, textAlign: 'center' }}>
         {tipo === 'backup' ? 'Ingresá uno de tus códigos de respaldo.'
           : tipo === 'whatsapp' ? 'Ingresá el código que te enviamos por WhatsApp' + (phoneHint ? ' a ' + phoneHint : '') + '.'
-            : 'Ingresá el código de 6 dígitos de tu app autenticadora.'}
+            : tipo === 'email' ? 'Ingresá el código que te enviamos por email' + (emailHint ? ' a ' + emailHint : '') + '.'
+              : 'Ingresá el código de 6 dígitos de tu app autenticadora.'}
       </div>
       <div className="field">
         <label>{titulo}</label>
@@ -62,6 +70,11 @@ export function TwoFAChallenge({ pending, methods = ['totp'], phoneHint, onVerif
         {methods.includes('whatsapp') && tipo !== 'backup' && (
           <button type="button" className="btn sec sm block" disabled={busy} onClick={enviarWa}>
             <Icon name="whatsapp" size={15} />{waSent ? 'Reenviar código por WhatsApp' : 'Enviar código por WhatsApp'}
+          </button>
+        )}
+        {methods.includes('email') && tipo !== 'backup' && (
+          <button type="button" className="btn sec sm block" disabled={busy} onClick={enviarEmail}>
+            <Icon name="mail" size={15} />{emailSent ? 'Reenviar código por email' : 'Enviar código por email'}
           </button>
         )}
         {tipo !== 'backup'
