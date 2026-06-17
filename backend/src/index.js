@@ -8,6 +8,7 @@ import QRCode from 'qrcode';
 import { q, pool } from './db.js';
 import { buildInformePDF } from './pdf.js';
 import { importPruebasExcel, exportPruebasExcel } from './excel.js';
+import { buildClientesTemplate, previewClientesExcel, commitClientesExcel } from './clientes_excel.js';
 import { mountAuth, ensureAuthSchema } from './auth.js';
 import { mount2FA, ensure2FASchema } from './twofa.js';
 import { mountChatbot, ensureChatbotSchema } from './chatbot.js';
@@ -426,6 +427,29 @@ app.post('/api/pruebas/:id/fotos', upload.array('files', 10), wrap(async (req, r
 }));
 
 // ============== Carga masiva / exportación Excel ==============
+// --- Importación masiva de CLIENTES (plantilla + previsualización + confirmación) ---
+// Plantilla Excel descargable (con listas desplegables y hoja de instrucciones).
+app.get('/api/clientes/import/template.xlsx', wrap(async (req, res) => {
+  const buf = await buildClientesTemplate();
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', 'attachment; filename="plantilla_clientes.xlsx"');
+  res.send(buf);
+}));
+// Paso 1: previsualizar (valida y clasifica; NO inserta nada).
+app.post('/api/clientes/import/preview', memUpload.single('file'), wrap(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Falta archivo' });
+  res.json(await previewClientesExcel(req.file.buffer));
+}));
+// Paso 2: confirmar (re-valida e inserta sólo las filas válidas).
+app.post('/api/clientes/import/commit', wrap(async (req, res) => {
+  const filas = (req.body || {}).filas || [];
+  if (!Array.isArray(filas) || !filas.length) return res.status(400).json({ error: 'No hay filas para importar' });
+  const r = await commitClientesExcel(filas);
+  q("INSERT INTO auditoria (usuario,rol,metodo,ruta,status,detalle) VALUES ($1,$2,'POST','/clientes/import/commit',200,$3)",
+    [req.user?.username || '?', req.user?.rol || '?', ('Importó ' + r.creados + ' clientes, omitió ' + r.omitidos).slice(0, 300)]).catch(() => {});
+  res.json(r);
+}));
+
 // Importar pruebas desde Excel (reporte de central). Columnas esperadas:
 // etiqueta | estado | fecha | comentarios   (o codigo_qr en vez de etiqueta)
 app.post('/api/clientes/:id/pruebas/import', memUpload.single('file'), wrap(async (req, res) => {

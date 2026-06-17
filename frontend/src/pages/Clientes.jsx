@@ -5,6 +5,7 @@ import { Modal, Field, Loading, Empty, PageHeader, Stat } from '../components/ui
 import { Icon } from '../components/icons.jsx';
 import { toast } from '../components/toast.jsx';
 import Drawer from '../components/Drawer.jsx';
+import ImportClientes from '../components/ImportClientes.jsx';
 
 const FRECUENCIAS = ['mensual', 'bimestral', 'trimestral', 'semestral', 'anual', 'sin'];
 const FREC_LABEL = { mensual: 'Mensual', bimestral: 'Bimestral', trimestral: 'Trimestral', semestral: 'Semestral', anual: 'Anual', sin: 'Sin frecuencia' };
@@ -19,6 +20,7 @@ export default function Clientes() {
   const [esDesk, setEsDesk] = useState(typeof window !== 'undefined' && window.innerWidth >= 900);
   useEffect(() => { const fn = () => setEsDesk(window.innerWidth >= 900); window.addEventListener('resize', fn); return () => window.removeEventListener('resize', fn); }, []);
   const [verContrato, setVerContrato] = useState(null);
+  const [importar, setImportar] = useState(false);
   const nav = useNavigate();
 
   const load = () => {
@@ -44,7 +46,10 @@ export default function Clientes() {
   return (
     <div>
       <PageHeader icon="users" title="Clientes" desc="Empresas con servicio de mantenimiento preventivo"
-        actions={<button className="btn" onClick={() => setModal({ ...blank })}><Icon name="plus" size={17} />Nuevo cliente</button>} />
+        actions={<>
+          <button className="btn sec" onClick={() => setImportar(true)}><Icon name="upload" size={16} />Importar</button>
+          <button className="btn" onClick={() => setModal({ ...blank })}><Icon name="plus" size={17} />Nuevo cliente</button>
+        </>} />
 
       <div className="searchbar">
         <div className="wa-search">
@@ -139,6 +144,7 @@ export default function Clientes() {
 
       {modal && <ClienteModal cliente={modal} onClose={() => setModal(null)} onSave={save} />}
       {verContrato && <ContratoModal {...verContrato} onClose={() => setVerContrato(null)} />}
+      {importar && <ImportClientes onClose={() => setImportar(false)} onDone={load} />}
     </div>
   );
 }
