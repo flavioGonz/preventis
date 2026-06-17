@@ -196,7 +196,6 @@ export default function VisitaDetalle({ user }) {
     if (visita.estado !== 'en_curso' && visita.estado !== 'cerrada' && !visita.multidia) acts.push({ key: 'iniciar', label: 'Iniciar', icon: 'arrowRight', cls: 'btn', onClick: () => cambiarEstado('iniciar') });
     if (visita.estado === 'en_curso') acts.push({ key: 'cerrar', label: 'Cerrar visita', icon: 'checkCircle', cls: 'btn ok-cta', onClick: () => setCerrarOpen(true) });
     if (visita.estado === 'cerrada') acts.push({ key: 'reabrir', label: 'Reabrir', icon: 'edit', cls: 'btn sec', onClick: () => cambiarEstado('reabrir') });
-    if (esAdmin && visita.estado !== 'cerrada') acts.push({ key: 'cancelar', label: 'Cancelar', icon: 'x', cls: 'btn ghost', onClick: () => setCancelarOpen(true) });
     acts.push({ key: 'guardar', label: saving ? 'Guardando...' : 'Guardar', icon: 'save', cls: 'btn sec', onClick: guardar, disabled: saving || visita.estado === 'cerrada' });
   }
 
