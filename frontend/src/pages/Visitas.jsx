@@ -133,7 +133,7 @@ export default function Visitas() {
         const ICON = { programada: 'calendar', en_curso: 'clock', cerrada: 'check', cancelada: 'x' };
         const misN = myTec ? all.filter(v => (v.tecnico_ids || []).map(String).includes(String(myTec.id))).length : 0;
         return <div className="tkl-stats">
-          {[['programada', 'Programadas'], ['en_curso', 'En curso'], ['cerrada', 'Cerradas'], ['cancelada', 'Canceladas']].map(([e, l]) => (
+          {[['programada', 'Programadas'], ['en_curso', 'En curso'], ['cerrada', 'Cerradas']].map(([e, l]) => (
             <div key={e} className={'tkl-stat ' + EST[e][0] + (f.estado === e ? ' on' : '')} onClick={() => set('estado', f.estado === e ? '' : e)}>
               <span className="ts-ic"><Icon name={ICON[e]} size={16} /></span>
               <div><b>{cnt(e)}</b><small>{l}</small></div>
