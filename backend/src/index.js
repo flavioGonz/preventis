@@ -9,6 +9,7 @@ import { q, pool } from './db.js';
 import { buildInformePDF } from './pdf.js';
 import { importPruebasExcel, exportPruebasExcel } from './excel.js';
 import { buildClientesTemplate, previewClientesExcel, commitClientesExcel } from './clientes_excel.js';
+import { buildEquiposTemplate, previewEquiposExcel, commitEquiposExcel } from './equipos_excel.js';
 import { mountAuth, ensureAuthSchema } from './auth.js';
 import { mount2FA, ensure2FASchema } from './twofa.js';
 import { mountChatbot, ensureChatbotSchema } from './chatbot.js';
@@ -447,6 +448,26 @@ app.post('/api/clientes/import/commit', wrap(async (req, res) => {
   const r = await commitClientesExcel(filas);
   q("INSERT INTO auditoria (usuario,rol,metodo,ruta,status,detalle) VALUES ($1,$2,'POST','/clientes/import/commit',200,$3)",
     [req.user?.username || '?', req.user?.rol || '?', ('Importó ' + r.creados + ' clientes, omitió ' + r.omitidos).slice(0, 300)]).catch(() => {});
+  res.json(r);
+}));
+
+// --- Importación masiva de EQUIPOS de un cliente (plantilla + previsualización + confirmación) ---
+app.get('/api/clientes/:id/equipos/import/template.xlsx', wrap(async (req, res) => {
+  const buf = await buildEquiposTemplate();
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', 'attachment; filename="plantilla_equipos.xlsx"');
+  res.send(buf);
+}));
+app.post('/api/clientes/:id/equipos/import/preview', memUpload.single('file'), wrap(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Falta archivo' });
+  res.json(await previewEquiposExcel(Number(req.params.id), req.file.buffer));
+}));
+app.post('/api/clientes/:id/equipos/import/commit', wrap(async (req, res) => {
+  const filas = (req.body || {}).filas || [];
+  if (!Array.isArray(filas) || !filas.length) return res.status(400).json({ error: 'No hay filas para importar' });
+  const r = await commitEquiposExcel(Number(req.params.id), filas);
+  q("INSERT INTO auditoria (usuario,rol,metodo,ruta,status,detalle) VALUES ($1,$2,'POST','/clientes/equipos/import/commit',200,$3)",
+    [req.user?.username || '?', req.user?.rol || '?', ('Importó ' + r.creados + ' equipos al cliente ' + req.params.id + ', omitió ' + r.omitidos).slice(0, 300)]).catch(() => {});
   res.json(r);
 }));
 

@@ -6,6 +6,7 @@ import { Icon } from '../components/icons.jsx';
 import { toast } from '../components/toast.jsx';
 import { PRIO, EST, PrioIcon, TkAvatar, TicketModal } from './Tickets.jsx';
 import MapView from '../components/MapView.jsx';
+import ImportEquipos from '../components/ImportEquipos.jsx';
 import { getGPS } from '../geo.js';
 
 const FRECUENCIAS = ['mensual', 'bimestral', 'trimestral', 'semestral', 'anual', 'sin'];
@@ -290,6 +291,7 @@ function Equipos({ clienteId, user }) {
   const [tipos, setTipos] = useState([]);
   const [estandar, setEstandar] = useState([]);
   const [modal, setModal] = useState(null);
+  const [importEq, setImportEq] = useState(false);
   const nav = useNavigate();
 
   const load = () => api.get('/api/clientes/' + clienteId + '/equipos').then(setEquipos);
@@ -329,8 +331,9 @@ function Equipos({ clienteId, user }) {
         <div className="row wrap" style={{ gap: 8 }}>
           <Link className="btn sec sm" to={'/clientes/' + clienteId + '/etiquetas'}><Icon name="qr" size={15} />QRs</Link>
           <a className="btn sec sm" href={api.fileUrl('/api/clientes/' + clienteId + '/pruebas/export.xlsx')}><Icon name="download" size={15} />Exportar</a>
+          <button className="btn sec sm" onClick={() => setImportEq(true)}><Icon name="upload" size={15} />Importar equipos</button>
           <label className="btn sec sm" style={{ cursor: 'pointer' }}>
-            <Icon name="upload" size={15} />Importar
+            <Icon name="upload" size={15} />Importar pruebas
             <input type="file" accept=".xlsx" hidden onChange={importExcel} />
           </label>
           <button className="btn sm" onClick={() => setModal({ ...blankEq })}><Icon name="plus" size={16} />Equipo</button>
@@ -376,6 +379,7 @@ function Equipos({ clienteId, user }) {
           </div>}
 
       {modal && <EquipoModal equipo={modal} sistemas={sistemas} tipos={tipos} estandar={estandar} onClose={() => setModal(null)} onSave={save} />}
+      {importEq && <ImportEquipos clienteId={clienteId} onClose={() => setImportEq(false)} onDone={load} />}
     </div>
   );
 }
