@@ -33,6 +33,8 @@ export default function Visitas() {
   const [esDesk, setEsDesk] = useState(typeof window !== 'undefined' && window.innerWidth >= 900);
   useEffect(() => { const fn = () => setEsDesk(window.innerWidth >= 900); window.addEventListener('resize', fn); return () => window.removeEventListener('resize', fn); }, []);
   const [q, setQ] = useState('');
+  const [aBorrar, setABorrar] = useState(null);
+  const esAdmin = getUser()?.rol === 'admin';
   const nav = useNavigate();
 
   const load = () => {
@@ -99,6 +101,7 @@ export default function Visitas() {
               {closed
                 ? <button className="btn ghost sm" onClick={(e) => reabrir(e, v)}><Icon name="edit" size={13} />Reabrir</button>
                 : <span className={'badge ' + c}><span className="dot" />{l}</span>}
+              {esAdmin && <button className="btn ghost icon tkl-del" data-tip="Eliminar visita" aria-label="Eliminar" onClick={(e) => { e.stopPropagation(); setABorrar(v); }}><Icon name="trash" size={14} /></button>}
             </span>
           </div>
         </div>
@@ -194,6 +197,7 @@ export default function Visitas() {
       })()}
 
       {nuevo && <AgendarModal nuevo={nuevo} clientes={clientes} tecnicos={tecnicos} onClose={() => setNuevo(null)} onSave={agendar} />}
+      {aBorrar && <BorrarVisitaModal visita={aBorrar} onClose={() => setABorrar(null)} onDone={() => { setABorrar(null); load(); }} />}
 
       {vista === 'lista' && <div className="wa-search" style={{ marginBottom: 14 }}>
         <Icon name="search" size={17} />
@@ -228,6 +232,37 @@ export default function Visitas() {
   );
 }
 
+
+// Modal de borrado de visita: exige escribir la palabra "borrar" para confirmar.
+function BorrarVisitaModal({ visita, onClose, onDone }) {
+  const [txt, setTxt] = useState('');
+  const [busy, setBusy] = useState(false);
+  const ok = txt.trim().toLowerCase() === 'borrar';
+  const go = async () => {
+    if (!ok) return;
+    setBusy(true);
+    try { await api.del('/api/visitas/' + visita.id); toast.ok('Visita eliminada'); onDone(); }
+    catch (e) { toast.err(e.message); setBusy(false); }
+  };
+  const fecha = visita.fecha ? new Date(visita.fecha).toLocaleDateString('es-UY') : '';
+  return (
+    <Modal title={<span className="row" style={{ gap: 8 }}><span className="modal-ico falla"><Icon name="trash" size={16} /></span>Eliminar visita</span>}
+      subtitle="Esta acción no se puede deshacer" onClose={onClose}
+      footer={<>
+        <button className="btn ghost" onClick={onClose} disabled={busy}>Cancelar</button>
+        <button className="btn danger" disabled={!ok || busy} onClick={go}><Icon name="trash" size={15} />{busy ? 'Eliminando…' : 'Eliminar visita'}</button>
+      </>}>
+      <p style={{ margin: '0 0 6px', fontSize: 14 }}>
+        Se eliminará la visita de <b>{visita.cliente}</b>{fecha ? ' (' + fecha + ')' : ''} con todas sus pruebas, fotos y adjuntos.
+      </p>
+      <p className="muted" style={{ fontSize: 13, margin: '0 0 12px' }}>Para confirmar, escribí <b>borrar</b> en el campo de abajo.</p>
+      <div className="field">
+        <input value={txt} autoFocus placeholder="borrar" onChange={e => setTxt(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && ok) go(); }} style={{ textAlign: 'center', letterSpacing: 1 }} />
+      </div>
+    </Modal>
+  );
+}
 
 export function AgendarModal({ nuevo, clientes, tecnicos, onClose, onSave }) {
   const [f, setF] = useState({ ...nuevo, modo: nuevo.modo || 'un_dia', hasta: nuevo.hasta || '', sinFinde: nuevo.sinFinde !== false });
