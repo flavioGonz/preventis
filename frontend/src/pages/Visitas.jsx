@@ -233,11 +233,12 @@ export default function Visitas() {
 }
 
 
-// Modal de borrado de visita: exige escribir la palabra "borrar" para confirmar.
+// Modal de borrado de visita: diseño estilizado; exige escribir "borrar" para confirmar.
 function BorrarVisitaModal({ visita, onClose, onDone }) {
   const [txt, setTxt] = useState('');
   const [busy, setBusy] = useState(false);
   const ok = txt.trim().toLowerCase() === 'borrar';
+  const touched = txt.length > 0;
   const go = async () => {
     if (!ok) return;
     setBusy(true);
@@ -245,20 +246,36 @@ function BorrarVisitaModal({ visita, onClose, onDone }) {
     catch (e) { toast.err(e.message); setBusy(false); }
   };
   const fecha = visita.fecha ? new Date(visita.fecha).toLocaleDateString('es-UY') : '';
+  const borde = ok ? 'var(--ok)' : touched ? 'var(--falla)' : 'var(--border)';
   return (
-    <Modal title={<span className="row" style={{ gap: 8 }}><span className="modal-ico falla"><Icon name="trash" size={16} /></span>Eliminar visita</span>}
-      subtitle="Esta acción no se puede deshacer" onClose={onClose}
+    <Modal size="sm" onClose={onClose}
       footer={<>
         <button className="btn ghost" onClick={onClose} disabled={busy}>Cancelar</button>
         <button className="btn danger" disabled={!ok || busy} onClick={go}><Icon name="trash" size={15} />{busy ? 'Eliminando…' : 'Eliminar visita'}</button>
       </>}>
-      <p style={{ margin: '0 0 6px', fontSize: 14 }}>
-        Se eliminará la visita de <b>{visita.cliente}</b>{fecha ? ' (' + fecha + ')' : ''} con todas sus pruebas, fotos y adjuntos.
-      </p>
-      <p className="muted" style={{ fontSize: 13, margin: '0 0 12px' }}>Para confirmar, escribí <b>borrar</b> en el campo de abajo.</p>
-      <div className="field">
+      <div style={{ textAlign: 'center', padding: '4px 4px 2px' }}>
+        <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'var(--falla-bg)', color: 'var(--falla)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12, boxShadow: '0 0 0 6px var(--falla-bg)' }}>
+          <Icon name="trash" size={26} />
+        </div>
+        <h3 style={{ margin: '0 0 4px', fontSize: 18 }}>¿Eliminar esta visita?</h3>
+        <div className="muted" style={{ fontSize: 13.5 }}><b style={{ color: 'var(--text)' }}>{visita.cliente}</b>{fecha ? ' · ' + fecha : ''}</div>
+      </div>
+
+      <div style={{ margin: '14px 0', padding: '11px 13px', background: 'var(--falla-bg)', border: '1px solid var(--falla-bd)', borderRadius: 12, display: 'flex', gap: 10 }}>
+        <Icon name="alert" size={18} color="var(--falla)" />
+        <div style={{ fontSize: 13, lineHeight: 1.45 }}>
+          Se eliminarán también <b>todas las pruebas, fotos y adjuntos</b> de la visita. Esta acción <b>no se puede deshacer</b>.
+        </div>
+      </div>
+
+      <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+        Escribí <span style={{ color: 'var(--falla)', fontFamily: 'monospace' }}>borrar</span> para confirmar
+      </label>
+      <div style={{ position: 'relative' }}>
         <input value={txt} autoFocus placeholder="borrar" onChange={e => setTxt(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && ok) go(); }} style={{ textAlign: 'center', letterSpacing: 1 }} />
+          onKeyDown={e => { if (e.key === 'Enter' && ok) go(); }}
+          style={{ width: '100%', textAlign: 'center', letterSpacing: 2, fontWeight: 600, padding: '11px 12px', borderRadius: 10, border: '2px solid ' + borde, outline: 'none', transition: 'border-color .15s' }} />
+        {ok && <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--ok)' }}><Icon name="checkCircle" size={18} /></span>}
       </div>
     </Modal>
   );
