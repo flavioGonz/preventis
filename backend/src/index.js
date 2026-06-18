@@ -255,9 +255,9 @@ app.put('/api/visitas/:id/fecha', wrap(async (req, res) => {
 app.post('/api/clientes/:id/visitas', wrap(async (req, res) => {
   const b = req.body;
   const r = await q(`
-    INSERT INTO visitas (cliente_id,fecha,tecnico_id,situacion_inicial,acciones,situacion_final,asignada_por,tipo,contrato_id,ticket_id,fecha_max_resolucion)
-    VALUES ($1,COALESCE($2,CURRENT_DATE),$3,$4,$5,$6,$7,COALESCE($8,'preventiva'),$9,$10,$11) RETURNING *`,
-    [req.params.id, b.fecha || null, b.tecnico_id || null, b.situacion_inicial, b.acciones, b.situacion_final, b.asignada_por || req.user?.nombre || req.user?.username || null, b.tipo || null, b.contrato_id || null, b.ticket_id || null, b.fecha_max_resolucion || null]);
+    INSERT INTO visitas (cliente_id,fecha,tecnico_id,situacion_inicial,acciones,situacion_final,asignada_por,tipo,contrato_id,ticket_id,fecha_max_resolucion,titulo)
+    VALUES ($1,COALESCE($2,CURRENT_DATE),$3,$4,$5,$6,$7,COALESCE($8,'preventiva'),$9,$10,$11,$12) RETURNING *`,
+    [req.params.id, b.fecha || null, b.tecnico_id || null, b.situacion_inicial, b.acciones, b.situacion_final, b.asignada_por || req.user?.nombre || req.user?.username || null, b.tipo || null, b.contrato_id || null, b.ticket_id || null, b.fecha_max_resolucion || null, b.titulo || null]);
   await setVisitaTecnicos(r.rows[0].id, b.tecnico_ids !== undefined ? b.tecnico_ids : (b.tecnico_id ? [b.tecnico_id] : []));
   // Jornadas (visitas de varios dias). Si no se envian dias, se crea una jornada del dia de la visita.
   const vid = r.rows[0].id;
@@ -283,9 +283,9 @@ app.put('/api/visitas/:id', wrap(async (req, res) => {
   const b = req.body;
   const r = await q(`
     UPDATE visitas SET fecha=COALESCE($1,fecha), tecnico_id=$2,
-      situacion_inicial=$3, acciones=$4, situacion_final=$5, cerrada=COALESCE($6,cerrada), asignada_por=$8, tipo=COALESCE($9,tipo), fecha_max_resolucion=$10
+      situacion_inicial=$3, acciones=$4, situacion_final=$5, cerrada=COALESCE($6,cerrada), asignada_por=$8, tipo=COALESCE($9,tipo), fecha_max_resolucion=$10, titulo=$11
     WHERE id=$7 RETURNING *`,
-    [b.fecha || null, b.tecnico_id || null, b.situacion_inicial, b.acciones, b.situacion_final, b.cerrada, req.params.id, b.asignada_por ?? null, b.tipo || null, b.fecha_max_resolucion || null]);
+    [b.fecha || null, b.tecnico_id || null, b.situacion_inicial, b.acciones, b.situacion_final, b.cerrada, req.params.id, b.asignada_por ?? null, b.tipo || null, b.fecha_max_resolucion || null, b.titulo ?? null]);
   if (b.tecnico_ids !== undefined) await setVisitaTecnicos(req.params.id, b.tecnico_ids);
   res.json(r.rows[0]);
 }));

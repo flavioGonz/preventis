@@ -230,7 +230,7 @@ export default function VisitaDetalle({ user }) {
       <div className="page-head">
         <div style={{ minWidth: 0 }}>
           <div className="row wrap" style={{ gap: 10, alignItems: 'center' }}>
-            <div className="ttl">Visita - {fechaUY(visita.fecha)}</div>
+            <div className="ttl">{visita.titulo || ('Visita - ' + fechaUY(visita.fecha))}</div>
             <span className="row wrap" style={{ gap: 6 }}>
               {estadoVisita(visita.estado)}
               {multiInfo && <span className={'badge mini ' + (multiInfo === 'En pausa' ? 'warn' : 'info')}><Icon name={multiInfo === 'En pausa' ? 'clock' : 'repeat'} size={11} />{multiInfo}</span>}
@@ -239,7 +239,7 @@ export default function VisitaDetalle({ user }) {
               {visita.facturar === false && <span className="badge mini gris">No facturar</span>}
             </span>
           </div>
-          <div className="desc">{visita.cliente} - {visita.tecnico || 'Sin tecnico asignado'}</div>
+          <div className="desc">{visita.titulo ? fechaUY(visita.fecha) + ' · ' : ''}{visita.cliente} - {visita.tecnico || 'Sin tecnico asignado'}</div>
         </div>
         <button className="btn sec sm" onClick={() => setExportOpen(true)}><Icon name="download" size={15} />Exportar</button>
       </div>
@@ -316,6 +316,7 @@ export default function VisitaDetalle({ user }) {
         <div className="sec-head"><span className="fc-ic"><Icon name="clipboard" size={17} /></span><b>Datos de la visita</b></div>
         <div className="datos-split">
           <div className="datos-main">
+            <Field label={<span className="flabel"><Icon name="pen" size={13} />Título de la visita</span>}><input value={visita.titulo || ''} placeholder="Opcional — ej. el título del ticket" onChange={e => set('titulo', e.target.value)} /></Field>
             <div className="grid2">
               <Field label={<span className="flabel"><Icon name="calendar" size={13} />Fecha de la visita</span>}><DateField value={visita.fecha} onChange={v => set('fecha', v)} /></Field>
               <Field label={<span className="flabel"><Icon name="users" size={13} />Tecnicos {(visita.tecnico_ids || []).length > 0 && <span className="muted" style={{ fontWeight: 500 }}>({(visita.tecnico_ids || []).length})</span>}</span>}>

@@ -97,7 +97,7 @@ export default function Tickets() {
   const convertir = async (t) => {
     if (!t.cliente_id) { toast.err('El ticket no tiene cliente asociado'); return; }
     try {
-      const v = await api.post('/api/clientes/' + t.cliente_id + '/visitas', { fecha: new Date().toISOString().slice(0, 10), tipo: 'correctiva', asignada_por: 'Ticket TK-' + t.id, ticket_id: t.id, fecha_max_resolucion: t.fecha_max_resolucion || null });
+      const v = await api.post('/api/clientes/' + t.cliente_id + '/visitas', { fecha: new Date().toISOString().slice(0, 10), tipo: 'correctiva', titulo: t.titulo || null, asignada_por: 'Ticket TK-' + t.id, ticket_id: t.id, fecha_max_resolucion: t.fecha_max_resolucion || null });
       const fd = new FormData(); fd.append('texto', 'Convirtio el ticket en la visita correctiva #' + v.id);
       await api.upload('/api/tickets/' + t.id + '/comentarios', fd).catch(() => {});
       if (t.estado === 'abierto') await api.put('/api/tickets/' + t.id, { ...t, estado: 'en_proceso' }).catch(() => {});

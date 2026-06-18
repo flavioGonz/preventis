@@ -91,7 +91,7 @@ export default function Visitas() {
         </div>
         <div className="wa-main">
           <div className="wa-top">
-            <span className="wa-title">{v.cliente}</span>
+            <span className="wa-title">{v.titulo ? v.titulo + ' · ' + v.cliente : v.cliente}</span>
             <span className={'wa-time' + (TIMEAC[v.estado] || '')}>{new Date(v.fecha).toLocaleDateString('es-UY')}</span>
           </div>
           <div className="wa-bot">
