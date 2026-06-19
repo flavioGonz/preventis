@@ -146,7 +146,18 @@ export async function buildInformePDF(visitaId, uploadDir) {
     doc.strokeColor(LINE).lineWidth(0.8).moveTo(ML, y + 28).lineTo(W - ML, y + 28).stroke();
     doc.y = y + 40;
   };
-  const parrafo = (txt) => { doc.fillColor(INK).font('Helvetica').fontSize(10.5).text(txt && String(txt).trim() ? txt : 'Sin observaciones.', ML, doc.y, { width: CW, lineGap: 2 }); doc.moveDown(1); };
+  // Convierte el HTML del editor enriquecido a texto plano legible para el PDF.
+  const htmlToText = (h) => {
+    if (h == null) return '';
+    let s = String(h)
+      .replace(/<\s*(br|\/p|\/div|\/li|\/h[1-6]|\/tr)\s*\/?>/gi, '\n')
+      .replace(/<\s*li[^>]*>/gi, '• ')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#0?39;|&#x27;/gi, "'");
+    return s.replace(/\n{3,}/g, '\n\n').replace(/[ \t]+\n/g, '\n').trim();
+  };
+  const parrafo = (txt) => { const t = htmlToText(txt); doc.fillColor(INK).font('Helvetica').fontSize(10.5).text(t || 'Sin observaciones.', ML, doc.y, { width: CW, lineGap: 2 }); doc.moveDown(1); };
 
   doc.addPage(); runningHeader();
 

@@ -130,6 +130,24 @@ input::placeholder, textarea::placeholder { color:var(--subtle); }
 input:focus, select:focus, textarea:focus { outline:none; border-color:var(--brand-500);
   box-shadow:0 0 0 3px rgba(37,99,235,.14); }
 textarea { min-height:78px; resize:vertical; }
+/* Editor de texto enriquecido */
+.rt-wrap { border:1px solid var(--border-strong); border-radius:10px; background:var(--surface); overflow:hidden; transition:.13s; }
+.rt-wrap:focus-within { border-color:var(--brand-500); box-shadow:0 0 0 3px rgba(37,99,235,.14); }
+.rt-bar { display:flex; align-items:center; gap:2px; padding:5px 6px; border-bottom:1px solid var(--border); background:var(--surface-2); }
+.rt-btn { width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center; border:none; background:transparent; color:var(--text); border-radius:7px; cursor:pointer; font-size:14px; line-height:1; }
+.rt-btn:hover { background:rgba(0,0,0,.06); }
+.rt-sep { width:1px; height:18px; background:var(--border); margin:0 4px; }
+.rt-edit { min-height:84px; max-height:340px; overflow:auto; padding:10px 12px; font-size:14px; line-height:1.5; color:var(--text); outline:none; }
+.rt-edit:empty:before { content:attr(data-ph); color:var(--subtle); pointer-events:none; }
+.rt-edit ul { margin:4px 0; padding-left:22px; }
+.rt-disabled { opacity:.7; }
+/* Grilla de fotos con comentario */
+.foto-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(116px,1fr)); gap:8px; }
+.foto-card { border:1px solid var(--border); border-radius:10px; overflow:hidden; background:var(--surface); }
+.foto-card > a { display:block; }
+.foto-card img { width:100%; height:88px; object-fit:cover; display:block; }
+.foto-cap { width:100%; border:none; border-top:1px solid var(--border); border-radius:0; padding:6px 8px; font-size:12px; background:transparent; }
+.foto-cap:focus { box-shadow:none; border-top-color:var(--brand-500); }
 select { appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
   background-repeat:no-repeat; background-position:right 11px center; padding-right:34px; }
 .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }

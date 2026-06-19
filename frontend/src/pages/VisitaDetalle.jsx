@@ -7,6 +7,7 @@ import { toast } from '../components/toast.jsx';
 import SignaturePad from '../components/SignaturePad.jsx';
 import QRScanner from '../components/QRScanner.jsx';
 import Drawer from '../components/Drawer.jsx';
+import RichText from '../components/RichText.jsx';
 import { getGPS, mapsLink } from '../geo.js';
 import { trySave } from '../outbox.js';
 import { compressToDataURL, compressToFile } from '../img.js';
@@ -130,6 +131,15 @@ export default function VisitaDetalle({ user }) {
         toast.ok('Adjuntos subidos');
       }
       loadVisita();
+    } catch (err) { toast.err(err.message); }
+  };
+  // Guarda/actualiza el comentario (caption) de una foto al salir del campo.
+  const guardarComentarioFoto = async (fid, texto) => {
+    const prev = (visita.archivos || []).find(a => a.id === fid);
+    if (!prev || (prev.comentario || '') === (texto || '')) return;
+    try {
+      await api.put('/api/visita_archivos/' + fid, { comentario: texto });
+      setVisita(v => ({ ...v, archivos: (v.archivos || []).map(a => a.id === fid ? { ...a, comentario: texto } : a) }));
     } catch (err) { toast.err(err.message); }
   };
   const guardarFirma = async (dataUrl, firmante_nombre, firmante_doc) => {
@@ -349,9 +359,9 @@ export default function VisitaDetalle({ user }) {
               <datalist id="dl-usuarios">{usuarios.map(u => <option key={u.id} value={u.nombre || u.username} />)}</datalist>
             </Field>
             </div>
-            <Field label={<span className="flabel"><Icon name="pen" size={13} />Situacion inicial del sistema<VoiceBtn onText={t => set('situacion_inicial', (visita.situacion_inicial ? visita.situacion_inicial + ' ' : '') + t)} /></span>}><textarea value={visita.situacion_inicial || ''} onChange={e => set('situacion_inicial', e.target.value)} /></Field>
-            <Field label={<span className="flabel"><Icon name="wrench" size={13} />Acciones tomadas<VoiceBtn onText={t => set('acciones', (visita.acciones ? visita.acciones + ' ' : '') + t)} /></span>}><textarea value={visita.acciones || ''} onChange={e => set('acciones', e.target.value)} /></Field>
-            <Field label={<span className="flabel"><Icon name="checkCircle" size={13} />Situacion final del sistema<VoiceBtn onText={t => set('situacion_final', (visita.situacion_final ? visita.situacion_final + ' ' : '') + t)} /></span>}><textarea value={visita.situacion_final || ''} onChange={e => set('situacion_final', e.target.value)} /></Field>
+            <Field label={<span className="flabel"><Icon name="pen" size={13} />Situacion inicial del sistema<VoiceBtn onText={t => set('situacion_inicial', (visita.situacion_inicial ? visita.situacion_inicial + ' ' : '') + t)} /></span>}><RichText value={visita.situacion_inicial || ''} onChange={html => set('situacion_inicial', html)} placeholder="Describí el estado del sistema al llegar..." /></Field>
+            <Field label={<span className="flabel"><Icon name="wrench" size={13} />Acciones tomadas<VoiceBtn onText={t => set('acciones', (visita.acciones ? visita.acciones + ' ' : '') + t)} /></span>}><RichText value={visita.acciones || ''} onChange={html => set('acciones', html)} placeholder="Detallá las tareas realizadas..." /></Field>
+            <Field label={<span className="flabel"><Icon name="checkCircle" size={13} />Situacion final del sistema<VoiceBtn onText={t => set('situacion_final', (visita.situacion_final ? visita.situacion_final + ' ' : '') + t)} /></span>}><RichText value={visita.situacion_final || ''} onChange={html => set('situacion_final', html)} placeholder="Estado del sistema al finalizar..." /></Field>
           </div>
           <div className="datos-firma">
             <div className="side-box">
@@ -360,8 +370,15 @@ export default function VisitaDetalle({ user }) {
                 <label className="btn sec sm" style={{ cursor: 'pointer' }}><Icon name="camera" size={15} />Fotos<input type="file" accept="image/*" multiple hidden onChange={e => subirArchivos(e, 'foto')} /></label>
                 <label className="btn sec sm" style={{ cursor: 'pointer' }}><Icon name="paperclip" size={15} />Adjuntos<input type="file" multiple hidden onChange={e => subirArchivos(e, 'adjunto')} /></label>
               </div>
-              {fotos.length > 0 && <div className="row wrap" style={{ gap: 8, marginTop: 4 }}>
-                {fotos.map(f => <a key={f.id} href={api.base + f.path} target="_blank" rel="noreferrer"><img className="thumb" src={api.base + f.path} /></a>)}
+              {fotos.length > 0 && <div className="foto-grid" style={{ marginTop: 6 }}>
+                {fotos.map(f => (
+                  <div key={f.id} className="foto-card">
+                    <a href={api.base + f.path} target="_blank" rel="noreferrer"><img src={api.base + f.path} alt="" /></a>
+                    <input className="foto-cap" defaultValue={f.comentario || ''} placeholder="Comentario de la foto…"
+                      onBlur={e => guardarComentarioFoto(f.id, e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }} />
+                  </div>
+                ))}
               </div>}
               {adjuntos.length > 0 && <div className="stack" style={{ gap: 6, marginTop: 4 }}>
                 {adjuntos.map(a => <a key={a.id} className="row" style={{ gap: 7, fontSize: 13.5 }} href={api.base + a.path} target="_blank" rel="noreferrer"><Icon name="file" size={15} />{a.filename}</a>)}

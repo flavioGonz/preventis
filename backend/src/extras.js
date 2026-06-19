@@ -65,6 +65,7 @@ export function mountExtras(app, q) {
   // Migracion: estados/horarios de visita + GPS (cliente, visita, prueba)
   q(`ALTER TABLE visitas ADD COLUMN IF NOT EXISTS estado TEXT NOT NULL DEFAULT 'programada';
      ALTER TABLE visitas ADD COLUMN IF NOT EXISTS titulo TEXT;
+     ALTER TABLE visita_archivos ADD COLUMN IF NOT EXISTS comentario TEXT;
      ALTER TABLE visitas ADD COLUMN IF NOT EXISTS hora_entrada TIMESTAMPTZ;
      ALTER TABLE visitas ADD COLUMN IF NOT EXISTS hora_salida TIMESTAMPTZ;
      ALTER TABLE visitas ADD COLUMN IF NOT EXISTS firma_lat DOUBLE PRECISION;

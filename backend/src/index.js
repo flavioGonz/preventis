@@ -306,6 +306,12 @@ app.delete('/api/visita_archivos/:id', wrap(async (req, res) => {
   await q('DELETE FROM visita_archivos WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
 }));
+// Comentario (caption) de una foto/adjunto de la visita
+app.put('/api/visita_archivos/:id', wrap(async (req, res) => {
+  const r = await q('UPDATE visita_archivos SET comentario=$1 WHERE id=$2 RETURNING *', [(req.body?.comentario ?? '').toString().slice(0, 500) || null, req.params.id]);
+  if (!r.rows[0]) return res.status(404).json({ error: 'No encontrado' });
+  res.json(r.rows[0]);
+}));
 
 // Guardar firma del cliente (dataURL base64)
 app.post('/api/visitas/:id/firma', wrap(async (req, res) => {
