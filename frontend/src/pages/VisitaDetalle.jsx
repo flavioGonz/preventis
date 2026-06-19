@@ -29,6 +29,9 @@ export default function VisitaDetalle({ user }) {
   const [usuarios, setUsuarios] = useState([]);
   const [saving, setSaving] = useState(false);
   const [filtro, setFiltro] = useState('todos');
+  const [busqEq, setBusqEq] = useState('');
+  const [fSistema, setFSistema] = useState('');
+  const [fGrupo, setFGrupo] = useState('');
   const [cerrarOpen, setCerrarOpen] = useState(false);
   const [cancelarOpen, setCancelarOpen] = useState(false);
   const esAdmin = user?.rol === 'admin';
@@ -181,10 +184,19 @@ export default function VisitaDetalle({ user }) {
   const pendientes = (sug || []).filter(s => !s.estado_actual_id).length;
   const fallaAnterior = (sug || []).filter(s => s.ultima_falla).length;
   const pct = total ? Math.round((cargados / total) * 100) : 0;
+  const sistemasOpts = [...new Set((sug || []).map(s => s.sistema).filter(Boolean))].sort();
+  const gruposOpts = [...new Set((sug || []).map(s => s.grupo).filter(Boolean))].sort();
+  const qEq = busqEq.trim().toLowerCase();
+  const matchTexto = (s) => !qEq || [s.etiqueta, s.codigo_qr, s.sistema, s.tipo_elemento, s.direccion, s.grupo, s.subgrupo, s.modelo]
+    .filter(Boolean).some(v => String(v).toLowerCase().includes(qEq));
   const filtrados = (sug || []).filter(s =>
-    filtro === 'pendientes' ? !s.estado_actual_id :
-    filtro === 'cargados' ? !!s.estado_actual_id :
-    filtro === 'falla' ? s.prioridad === 1 : true);
+    (filtro === 'pendientes' ? !s.estado_actual_id :
+      filtro === 'cargados' ? !!s.estado_actual_id :
+        filtro === 'falla' ? s.prioridad === 1 : true)
+    && (!fSistema || s.sistema === fSistema)
+    && (!fGrupo || s.grupo === fGrupo)
+    && matchTexto(s));
+  const filtrosExtra = (fSistema ? 1 : 0) + (fGrupo ? 1 : 0);
 
   const FILTLBL = { todos: 'Todos', pendientes: 'Pendientes', cargados: 'Cargados', falla: 'En falla' };
   const filtCount = filtro === 'todos' ? total : filtro === 'pendientes' ? pendientes : filtro === 'cargados' ? cargados : enFalla;
@@ -381,9 +393,14 @@ export default function VisitaDetalle({ user }) {
         <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
           <button className="btn" onClick={() => setScanOpen(true)}><Icon name="qr" size={17} />Escanear QR</button>
           {pendientes > 0 && visita.estado === 'en_curso' && <button className="btn sec sm" onClick={() => setOkOpen(true)}><Icon name="check" size={15} />Marcar OK pendientes ({pendientes})</button>}
-          {total > 0 && <button className="btn sec sm" onClick={() => setEqFilterOpen(true)}><Icon name="filter" size={15} />{FILTLBL[filtro]} ({filtCount})</button>}
+          {total > 0 && <button className={'btn sec sm' + (filtrosExtra ? ' on' : '')} onClick={() => setEqFilterOpen(true)}><Icon name="filter" size={15} />{FILTLBL[filtro]} ({filtCount}){filtrosExtra ? <span className="fc">{filtrosExtra}</span> : null}</button>}
         </div>
       </div>
+      {total > 0 && <div className="wa-search" style={{ margin: '0 0 12px' }}>
+        <Icon name="search" size={17} />
+        <input placeholder="Buscar por etiqueta, sistema, grupo, dirección, modelo..." value={busqEq} onChange={e => setBusqEq(e.target.value)} />
+        {busqEq && <button className="btn ghost icon sm" onClick={() => setBusqEq('')}><Icon name="x" size={15} /></button>}
+      </div>}
       {fallaAnterior > 0 && <div className="prev-falla" onClick={() => setFiltro('falla')}>
         <Icon name="alert" size={15} />
         <span><b>{fallaAnterior}</b> {fallaAnterior === 1 ? 'equipo quedo' : 'equipos quedaron'} en falla la visita anterior. Tocá para verlos.</span>
@@ -444,6 +461,21 @@ export default function VisitaDetalle({ user }) {
               <span className={'chip' + (filtro === 'falla' ? ' active' : '')} onClick={() => { setFiltro('falla'); setEqFilterOpen(false); }}>En falla ({enFalla})</span>
             </div>
           </div>
+          {sistemasOpts.length > 0 && <div className="field">
+            <label>Sistema</label>
+            <div className="chips">
+              <span className={'chip' + (!fSistema ? ' active' : '')} onClick={() => setFSistema('')}>Todos</span>
+              {sistemasOpts.map(x => <span key={x} className={'chip' + (fSistema === x ? ' active' : '')} onClick={() => setFSistema(fSistema === x ? '' : x)}>{x}</span>)}
+            </div>
+          </div>}
+          {gruposOpts.length > 0 && <div className="field">
+            <label>Grupo</label>
+            <div className="chips">
+              <span className={'chip' + (!fGrupo ? ' active' : '')} onClick={() => setFGrupo('')}>Todos</span>
+              {gruposOpts.map(x => <span key={x} className={'chip' + (fGrupo === x ? ' active' : '')} onClick={() => setFGrupo(fGrupo === x ? '' : x)}>{x}</span>)}
+            </div>
+          </div>}
+          {(fSistema || fGrupo) && <button className="btn ghost sm" onClick={() => { setFSistema(''); setFGrupo(''); }}><Icon name="x" size={14} />Limpiar sistema y grupo</button>}
           <div className="field">
             <label>Orden de prioridad sugerido</label>
             <div className="row wrap" style={{ gap: 6 }}>
