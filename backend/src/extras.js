@@ -603,13 +603,28 @@ export function mountExtras(app, q) {
     if (_now - _wb.win > 60000) { _wb.win = _now; _wb.n = 0; }
     if (++_wb.n > 150) return res.status(429).json({ error: 'rate' });
     const body = req.body || {};
-    const { evt, from, texto, fromMe, isGroup } = parseInbound(body);
+    const { evt, from, texto, fromMe, isGroup, media } = parseInbound(body);
     // Loguear SIEMPRE lo que llega (asi se ve en el panel aunque no se pueda procesar)
-    const detalle = (from || texto) ? (from + ' :: ' + texto) : ('RAW ' + JSON.stringify(body));
+    const detalle = (from || texto) ? (from + ' :: ' + (texto || (media ? '[imagen]' : ''))) : ('RAW ' + JSON.stringify(body));
     q("INSERT INTO auditoria (usuario,rol,metodo,ruta,status,detalle) VALUES ('chatbot','whatsapp','IN','/chatbot/recibido',200,$1)", [detalle.slice(0, 470)]).catch(() => {});
-    if (evt && !/message|msg|upsert|received|text/i.test(evt)) return res.json({ status: 'ignored', reason: evt });
-    if (!from || !texto || fromMe) return res.json({ status: 'ignored', parsed: { from: !!from, texto: !!texto, fromMe } });
-    const { resp } = await handleIncoming(q, { from, texto, isGroup });
+    if (evt && !/message|msg|upsert|received|text|image|media/i.test(evt)) return res.json({ status: 'ignored', reason: evt });
+    if (!from || fromMe || (!texto && !media)) return res.json({ status: 'ignored', parsed: { from: !!from, texto: !!texto, media: !!media, fromMe } });
+    // Descarga el comprobante (foto) del gateway y lo asocia al cobro/pago (best-effort).
+    const saveComprobante = async (tipo, refId, m) => {
+      try {
+        const cfg = await chatbotCfg(); const headers = {}; if (cfg.api_key) headers['X-API-Key'] = cfg.api_key;
+        const r = await fetch(m.url, { headers });
+        if (!r.ok) return false;
+        const buf = Buffer.from(await r.arrayBuffer());
+        if (!buf.length || buf.length > 25 * 1024 * 1024) return false;
+        const ext = /png/i.test(m.mime || '') ? '.png' : /pdf/i.test(m.mime || '') ? '.pdf' : '.jpg';
+        const fname = Date.now() + '_' + Math.random().toString(36).slice(2, 8) + ext;
+        fs.writeFileSync(path.join(UPLOAD_X, fname), buf);
+        await q("INSERT INTO fin_comprobantes (tipo, ref_id, path) VALUES ($1,$2,$3)", [tipo, refId, '/uploads/' + fname]);
+        return true;
+      } catch { return false; }
+    };
+    const { resp } = await handleIncoming(q, { from, texto, isGroup, media }, { saveComprobante });
     if (resp) await waSend(resp, from);
     res.json({ ok: true, respondido: !!resp });
   }));

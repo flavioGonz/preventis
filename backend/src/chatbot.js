@@ -27,7 +27,142 @@ const buscarClientes = async (q, txt) => (await q("SELECT id, nombre FROM client
 const trasCliente = (sess) => { if (sess.flow === 'ticket') { sess.step = 'titulo'; return 'Cliente: *' + sess.data.cliente + '*\n¿Cuál es el título o problema del ticket?'; } sess.step = 'fecha'; return 'Cliente: *' + sess.data.cliente + '*\n¿Para qué fecha? (_hoy_, _mañana_ o DD/MM)'; };
 const esSi = (t) => /^(s[ií]|ok|dale|confirmar?|si)$/i.test(String(t).trim());
 
-async function continueFlow(q, tel, sess, t, sender) {
+// ---------- Finanzas (solo numeros admin) ----------
+const MEDIOS = ['Efectivo', 'Transferencia', 'Débito/Crédito', 'Cheque', 'Otro'];
+const esAdminBot = (s) => s && s.rol === 'admin';
+const fmtMoney = (n, mon) => (mon === 'USD' ? 'US$ ' : '$ ') + Number(n || 0).toLocaleString('es-UY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function parseMonto(s) {
+  const str = String(s || '').toLowerCase();
+  const moneda = /\b(usd|u\$s|us\$|d[oó]lar|d[oó]lares)\b/.test(str) ? 'USD' : 'UYU';
+  let num = str.replace(/[^0-9.,]/g, '');
+  if (!num) return null;
+  if (num.includes(',') && num.includes('.')) num = num.lastIndexOf(',') > num.lastIndexOf('.') ? num.replace(/\./g, '').replace(',', '.') : num.replace(/,/g, '');
+  else if (num.includes(',')) { const p = num.split(','); num = (p.length === 2 && p[1].length <= 2) ? num.replace(',', '.') : num.replace(/,/g, ''); }
+  else if ((num.match(/\./g) || []).length > 1) num = num.replace(/\./g, '');
+  else if (num.includes('.') && (num.split('.')[1] || '').length === 3) num = num.replace(/\./g, '');
+  const v = parseFloat(num);
+  if (!isFinite(v) || v <= 0) return null;
+  return { monto: Math.round(v * 100) / 100, moneda };
+}
+const startFactura = (tel) => { sessions.set(tel, { flow: 'factura', step: 'tipo', data: {}, exp: Date.now() + TTL }); return '🧾 *Nueva factura*\n¿Es emitida o recibida?\n1) Emitida (a un cliente)\n2) Recibida (de un proveedor)\n(_cancelar_ para salir)'; };
+const startCobro = (tel) => { sessions.set(tel, { flow: 'cobro', step: 'cliente', data: {}, exp: Date.now() + TTL }); return '💵 *Nuevo cobro* (ingreso)\n¿De qué cliente? Escribí parte del nombre.\n(_cancelar_ para salir)'; };
+const startPago = (tel) => { sessions.set(tel, { flow: 'pago', step: 'tercero', data: {}, exp: Date.now() + TTL }); return '💸 *Nuevo pago* (egreso)\n¿A quién le pagaste? (proveedor)\n(_cancelar_ para salir)'; };
+
+const finTrasCliente = (sess) => { sess.step = 'monto'; return 'Cliente: *' + sess.data.cliente + '*\n¿Monto cobrado? (ej. 1500 o 1500 usd)'; };
+function finResumen(sess) {
+  const d = sess.data;
+  if (sess.flow === 'cobro') return '¿Confirmás?\n💵 *Cobro* de *' + d.cliente + '*\n• Monto: ' + fmtMoney(d.monto, d.moneda) + '\n• Medio: ' + (d.medio || '-') + '\n(_sí_ / _no_)';
+  if (sess.flow === 'pago') return '¿Confirmás?\n💸 *Pago* a *' + d.tercero + '*\n• Monto: ' + fmtMoney(d.monto, d.moneda) + '\n• Medio: ' + (d.medio || '-') + '\n(_sí_ / _no_)';
+  return '¿Confirmás?\n🧾 *Factura ' + d.tipo + '*\n• ' + (d.cliente || d.tercero || '') + (d.numero ? '\n• N°: ' + d.numero : '') + '\n• Monto: ' + fmtMoney(d.monto, d.moneda) + (d.vencimiento ? '\n• Vence: ' + fechaUY(d.vencimiento) : '') + '\n(_sí_ / _no_)';
+}
+
+async function financeStep(q, tel, sess, t, sender, helpers) {
+  touch(sess); const d = sess.data; const tt = String(t).trim();
+  if (sess.step === 'cliente') {
+    const cs = await buscarClientes(q, tt);
+    if (!cs.length) return 'No encontré clientes con "' + tt + '". Probá de nuevo o _cancelar_.';
+    if (cs.length === 1) { d.cliente_id = cs[0].id; d.cliente = cs[0].nombre; return sess.flow === 'factura' ? (sess.step = 'numero', '¿Número de factura? (o *-* si no tiene)') : finTrasCliente(sess); }
+    sess.opciones = cs; sess.step = 'cliente_pick';
+    return 'Encontré varios:\n' + cs.map((c, i) => (i + 1) + ') ' + c.nombre).join('\n') + '\nRespondé con el número.';
+  }
+  if (sess.step === 'cliente_pick') {
+    const c = sess.opciones?.[parseInt(tt) - 1];
+    if (!c) return 'Elegí un número de la lista, o _cancelar_.';
+    d.cliente_id = c.id; d.cliente = c.nombre;
+    return sess.flow === 'factura' ? (sess.step = 'numero', 'Cliente: *' + c.nombre + '*\n¿Número de factura? (o *-* si no tiene)') : finTrasCliente(sess);
+  }
+  if (sess.step === 'monto') {
+    const m = parseMonto(tt);
+    if (!m) return 'No entendí el monto. Escribí un número, ej. *1500* o *1500 usd*.';
+    d.monto = m.monto; d.moneda = m.moneda;
+    if (sess.flow === 'cobro' || sess.flow === 'pago') { sess.step = 'medio'; return '¿Medio de pago?\n' + MEDIOS.map((x, i) => (i + 1) + ') ' + x).join('\n'); }
+    sess.step = 'vencimiento'; return '¿Vencimiento? (DD/MM, _hoy_, o *-* para sin fecha)';
+  }
+  if (sess.step === 'medio') {
+    const idx = parseInt(tt) - 1; d.medio = (idx >= 0 && MEDIOS[idx]) ? MEDIOS[idx] : tt.slice(0, 40);
+    sess.step = 'confirm'; return finResumen(sess);
+  }
+  if (sess.flow === 'pago' && sess.step === 'tercero') { d.tercero = tt.slice(0, 120); sess.step = 'monto'; return 'Proveedor: *' + d.tercero + '*\n¿Monto pagado? (ej. 1500 o 1500 usd)'; }
+  if (sess.flow === 'factura') {
+    if (sess.step === 'tipo') {
+      const tp = { '1': 'emitida', '2': 'recibida', emitida: 'emitida', recibida: 'recibida' }[tt.toLowerCase()];
+      if (!tp) return 'Respondé 1 (emitida) o 2 (recibida).';
+      d.tipo = tp;
+      if (tp === 'emitida') { sess.step = 'cliente'; return '¿Para qué cliente? Escribí parte del nombre.'; }
+      sess.step = 'tercero'; return '¿De qué proveedor? (nombre)';
+    }
+    if (sess.step === 'tercero') { d.tercero = tt.slice(0, 120); sess.step = 'numero'; return 'Proveedor: *' + d.tercero + '*\n¿Número de factura? (o *-* si no tiene)'; }
+    if (sess.step === 'numero') { d.numero = (tt === '-' ? null : tt.slice(0, 60)); sess.step = 'monto'; return '¿Monto de la factura? (ej. 1500 o 1500 usd)'; }
+    if (sess.step === 'vencimiento') { if (tt === '-') d.vencimiento = null; else { const f = parseFecha(tt); if (!f) return 'No entendí la fecha. Probá DD/MM, _hoy_ o *-*.'; d.vencimiento = f; } sess.step = 'confirm'; return finResumen(sess); }
+  }
+  if (sess.step === 'confirm') {
+    if (!esSi(t)) { sessions.delete(tel); return 'Ok, no lo registré. Escribí el comando de nuevo para empezar otra vez.'; }
+    if (sess.flow === 'cobro') {
+      const r = await q("INSERT INTO fin_cobros (cliente_id,fecha,monto,moneda,medio) VALUES ($1,CURRENT_DATE,$2,$3,$4) RETURNING id", [d.cliente_id, d.monto, d.moneda, d.medio || null]);
+      d.compro = { tipo: 'cobros', ref_id: r.rows[0].id }; sess.step = 'comprobante';
+      try { notify({ type: 'fin', icon: 'file', text: '💵 Cobro (WhatsApp): ' + fmtMoney(d.monto, d.moneda) + ' — ' + d.cliente, url: '/contable' }); } catch {}
+      return '✅ Cobro #' + r.rows[0].id + ' registrado: ' + fmtMoney(d.monto, d.moneda) + ' de ' + d.cliente + '.\n📎 Si querés, mandá ahora la *foto del comprobante*, o escribí *listo*.';
+    }
+    if (sess.flow === 'pago') {
+      const r = await q("INSERT INTO fin_pagos (tercero,fecha,monto,moneda,medio) VALUES ($1,CURRENT_DATE,$2,$3,$4) RETURNING id", [d.tercero, d.monto, d.moneda, d.medio || null]);
+      d.compro = { tipo: 'pagos', ref_id: r.rows[0].id }; sess.step = 'comprobante';
+      try { notify({ type: 'fin', icon: 'file', text: '💸 Pago (WhatsApp): ' + fmtMoney(d.monto, d.moneda) + ' — ' + d.tercero, url: '/contable' }); } catch {}
+      return '✅ Pago #' + r.rows[0].id + ' registrado: ' + fmtMoney(d.monto, d.moneda) + ' a ' + d.tercero + '.\n📎 Si querés, mandá ahora la *foto del comprobante*, o escribí *listo*.';
+    }
+    if (sess.flow === 'factura') {
+      const r = await q("INSERT INTO fin_facturas (tipo,cliente_id,tercero,numero,fecha,vencimiento,monto,moneda,estado) VALUES ($1,$2,$3,$4,CURRENT_DATE,$5,$6,$7,'pendiente') RETURNING id", [d.tipo, d.cliente_id || null, d.tercero || null, d.numero || null, d.vencimiento || null, d.monto, d.moneda]);
+      sessions.delete(tel);
+      try { notify({ type: 'fin', icon: 'file', text: '🧾 Factura ' + d.tipo + ' (WhatsApp): ' + fmtMoney(d.monto, d.moneda) + ' — ' + (d.cliente || d.tercero || ''), url: '/contable' }); } catch {}
+      return '✅ Factura *' + d.tipo + '* registrada: ' + fmtMoney(d.monto, d.moneda) + ' — ' + (d.cliente || d.tercero || '') + (d.numero ? ' (N° ' + d.numero + ')' : '') + '.';
+    }
+  }
+  if (sess.step === 'comprobante') {
+    if (helpers && helpers.media && d.compro) {
+      const ok = helpers.saveComprobante ? await helpers.saveComprobante(d.compro.tipo, d.compro.ref_id, helpers.media) : false;
+      sessions.delete(tel);
+      return ok ? '📎 Comprobante guardado. ¡Listo!' : 'No pude guardar la foto, pero el registro quedó hecho. Podés adjuntarla desde la app.';
+    }
+    if (/^(listo|no|ok|nada|skip|saltar|fin)$/i.test(tt)) { sessions.delete(tel); return '👍 Listo.'; }
+    return 'Mandá la *foto del comprobante* o escribí *listo* para terminar.';
+  }
+  return 'No entendí. Escribí _cancelar_ para salir.';
+}
+
+async function financeQuery(q, cmd) {
+  const sumBy = (arr, mon) => Number((arr.find(x => x.moneda === mon) || {}).t || 0);
+  if (/^(balance|finanzas|caja)$/.test(cmd)) {
+    const cob = await one(q, "SELECT moneda, COALESCE(sum(monto),0) t FROM fin_cobros GROUP BY moneda");
+    const pag = await one(q, "SELECT moneda, COALESCE(sum(monto),0) t FROM fin_pagos GROUP BY moneda");
+    let out = '💰 *Balance*';
+    for (const mon of ['UYU', 'USD']) { const c = sumBy(cob, mon), p = sumBy(pag, mon); if (c || p) out += '\n*' + mon + '*: cobrado ' + fmtMoney(c, mon) + ' · pagado ' + fmtMoney(p, mon) + ' · balance ' + fmtMoney(c - p, mon); }
+    return out === '💰 *Balance*' ? 'Sin movimientos registrados.' : out;
+  }
+  if (/^(por\s*cobrar|pendientes?|deudas?)$/.test(cmd)) {
+    const tot = await one(q, "SELECT moneda, COALESCE(sum(monto),0) t FROM fin_facturas WHERE tipo='emitida' AND estado='pendiente' GROUP BY moneda");
+    const rows = await one(q, "SELECT f.numero, f.monto, f.moneda, f.vencimiento, c.nombre cliente FROM fin_facturas f LEFT JOIN clientes c ON c.id=f.cliente_id WHERE f.tipo='emitida' AND f.estado='pendiente' ORDER BY f.vencimiento NULLS LAST, f.id DESC LIMIT 8");
+    if (!rows.length) return 'No hay facturas pendientes de cobro ✅';
+    return '📥 *Por cobrar*\n' + tot.map(x => '• Total ' + x.moneda + ': ' + fmtMoney(x.t, x.moneda)).join('\n') + '\n' + rows.map(r => '· ' + (r.cliente || 's/cliente') + ' ' + fmtMoney(r.monto, r.moneda) + (r.numero ? ' (N° ' + r.numero + ')' : '') + (r.vencimiento ? ' vence ' + fechaUY(r.vencimiento) : '')).join('\n');
+  }
+  if (/^(movimientos|ultimos|últimos)$/.test(cmd)) {
+    const co = await one(q, "SELECT co.fecha, co.monto, co.moneda, c.nombre cliente FROM fin_cobros co LEFT JOIN clientes c ON c.id=co.cliente_id ORDER BY co.fecha DESC, co.id DESC LIMIT 5");
+    const pa = await one(q, "SELECT p.fecha, p.monto, p.moneda, p.tercero FROM fin_pagos p ORDER BY p.fecha DESC, p.id DESC LIMIT 5");
+    let out = '📊 *Últimos movimientos*';
+    if (co.length) out += '\n_Cobros_\n' + co.map(r => '• ' + fechaUY(r.fecha) + ' ' + fmtMoney(r.monto, r.moneda) + ' — ' + (r.cliente || '-')).join('\n');
+    if (pa.length) out += '\n_Pagos_\n' + pa.map(r => '• ' + fechaUY(r.fecha) + ' ' + fmtMoney(r.monto, r.moneda) + ' — ' + (r.tercero || '-')).join('\n');
+    return (co.length || pa.length) ? out : 'Sin movimientos aún.';
+  }
+  if (/^(mes|resumen\s*mes|finanzas\s*mes)$/.test(cmd)) {
+    const cob = await one(q, "SELECT moneda, COALESCE(sum(monto),0) t FROM fin_cobros WHERE date_trunc('month',fecha)=date_trunc('month',CURRENT_DATE) GROUP BY moneda");
+    const pag = await one(q, "SELECT moneda, COALESCE(sum(monto),0) t FROM fin_pagos WHERE date_trunc('month',fecha)=date_trunc('month',CURRENT_DATE) GROUP BY moneda");
+    let out = '🗓️ *Mes actual*';
+    for (const mon of ['UYU', 'USD']) { const c = sumBy(cob, mon), p = sumBy(pag, mon); if (c || p) out += '\n*' + mon + '*: cobrado ' + fmtMoney(c, mon) + ' · pagado ' + fmtMoney(p, mon) + ' · balance ' + fmtMoney(c - p, mon); }
+    return out === '🗓️ *Mes actual*' ? 'Sin movimientos este mes.' : out;
+  }
+  return null;
+}
+
+async function continueFlow(q, tel, sess, t, sender, helpers) {
+  if (sess.flow === 'factura' || sess.flow === 'cobro' || sess.flow === 'pago') return financeStep(q, tel, sess, t, sender, helpers);
   touch(sess); const d = sess.data;
   if (sess.step === 'cliente') {
     const cs = await buscarClientes(q, t);
@@ -134,7 +269,10 @@ export async function processCommand(q, texto, sender = {}) {
 
   if (/^(ayuda|help|menu|hola|buenas|buenos)/.test(cmd)) {
     const miAgenda = sender.tecnico_id ? '\n• *mi agenda* — tus visitas de la semana' : '';
-    return '🤖 *Preventis* — hola' + nom + '. Comandos:\n• *estado* — resumen general\n• *visitas* — próximas visitas\n• *agenda* — visitas de la semana' + miAgenda + '\n• *fallas* — equipos en falla\n• *tickets* — tickets abiertos\n• *ticket NN* — estado de un ticket\n• *cliente X* — próxima visita de un cliente\n\n✍️ *Crear* (te hago preguntas):\n• *nuevo ticket*\n• *nueva visita*\n• _cancelar_ — abortar';
+    const fin = sender.rol === 'admin'
+      ? '\n\n💰 *Finanzas* (admin):\n• *balance* · *mes* · *por cobrar* · *movimientos*\n• *nuevo cobro* · *nuevo pago* · *nueva factura*'
+      : '';
+    return '🤖 *Preventis* — hola' + nom + '. Comandos:\n• *estado* — resumen general\n• *visitas* — próximas visitas\n• *agenda* — visitas de la semana' + miAgenda + '\n• *fallas* — equipos en falla\n• *tickets* — tickets abiertos\n• *ticket NN* — estado de un ticket\n• *cliente X* — próxima visita de un cliente\n\n✍️ *Crear* (te hago preguntas):\n• *nuevo ticket*\n• *nueva visita*' + fin + '\n\n_cancelar_ — abortar';
   }
   if (/^(estado|resumen)/.test(cmd)) {
     const v = await one(q, "SELECT count(*)::int c FROM visitas WHERE estado IN ('programada','en_curso')");
@@ -181,6 +319,11 @@ export async function processCommand(q, texto, sender = {}) {
     const rows = await one(q, "SELECT t.id, t.titulo, t.prioridad, c.nombre AS cliente FROM tickets t LEFT JOIN clientes c ON c.id=t.cliente_id WHERE t.estado IN ('abierto','en_proceso') ORDER BY t.updated_at DESC LIMIT 8");
     return rows.length ? '🎫 *Tickets abiertos*\n' + rows.map(r => '• TK-' + r.id + ' [' + r.prioridad + '] ' + r.titulo + (r.cliente ? ' — ' + r.cliente : '')).join('\n') : 'Sin tickets abiertos ✅';
   }
+  // Consultas financieras (solo admin)
+  if (sender.rol === 'admin') {
+    const fq = await financeQuery(q, cmd);
+    if (fq) return fq;
+  }
   return 'No entendí 🤔. Escribí *ayuda* para ver los comandos.';
 }
 
@@ -196,13 +339,19 @@ export function parseInbound(body = {}) {
     (inner.imageMessage && inner.imageMessage.caption) || '').toString().trim();
   const from = (m.from || m.chatId || (m.chat && (m.chat.id || m.chat._serialized)) || key.remoteJid || m.remoteJid || m.author || '').toString();
   const fromMe = !!(m.fromMe ?? key.fromMe ?? m.self ?? body.fromMe);
-  return { evt, from, texto, fromMe, isGroup: /@g\.us$/i.test(from) || /-\d{6,}@/.test(from) };
+  // Media (foto). Distintos gateways la exponen de formas diferentes; tomamos una URL descargable si la hay.
+  const img = inner.imageMessage || {};
+  const mediaUrl = (m.media && (m.media.url || m.media)) || m.mediaUrl || m.deprecatedMms3Url || img.url || (typeof m.body === 'string' && /^https?:\/\//i.test(m.body) ? m.body : '') || '';
+  const mediaMime = (m.media && m.media.mimetype) || m.mimetype || m.mimeType || img.mimetype || '';
+  const esImagen = /^image\//i.test(mediaMime) || !!inner.imageMessage || /image/i.test(m.type || m.messageType || '') || !!m.hasMedia;
+  const media = (esImagen && typeof mediaUrl === 'string' && /^https?:\/\//i.test(mediaUrl)) ? { url: mediaUrl, mime: mediaMime || 'image/jpeg' } : null;
+  return { evt, from, texto, fromMe, media, isGroup: /@g\.us$/i.test(from) || /-\d{6,}@/.test(from) };
 }
 
 // Procesa un mensaje entrante: captura el numero, verifica autorizacion y arma respuesta.
-export async function handleIncoming(q, { from, texto, isGroup }) {
+export async function handleIncoming(q, { from, texto, isGroup, media }, helpers = {}) {
   const tel = norm(from);
-  if (!tel || !texto) return { resp: null };
+  if (!tel || (!texto && !media)) return { resp: null };
   // Captura / actualiza el numero
   await q(`INSERT INTO chatbot_numeros (telefono, ultimo_msg, ultimo_at, msgs)
            VALUES ($1,$2,now(),1)
@@ -210,9 +359,11 @@ export async function handleIncoming(q, { from, texto, isGroup }) {
     [tel, String(texto).slice(0, 300)]);
   const sender = (await q('SELECT * FROM chatbot_numeros WHERE telefono=$1', [tel])).rows[0] || {};
   // En grupos, al arrobar al bot el texto llega como "@59891716502 estado": quitamos la mención inicial.
-  const t = String(texto).trim().replace(/^(@[\d]{5,}\s*)+/g, '').trim();
+  const t = String(texto || '').trim().replace(/^(@[\d]{5,}\s*)+/g, '').trim();
+  // Mensaje solo-imagen sin conversación activa: ignorar (evita responder a cada foto suelta).
+  if (!t && media && !getSession(tel)) return { authorized: !!sender.autorizado, resp: null };
   // Palabras que claramente apuntan a Preventis (para no contestarle a quien escribe a OmniAccess).
-  const esComandoPreventis = /^(ayuda|hola|menu|buenas|buenos|estado|resumen|visitas|agenda|mi\s|fallas|tickets?\b|cliente\s|nuevo|nueva|crear|agendar|cancelar)/i.test(t);
+  const esComandoPreventis = /^(ayuda|hola|menu|buenas|buenos|estado|resumen|visitas|agenda|mi\s|fallas|tickets?\b|cliente\s|nuevo|nueva|crear|agendar|cancelar|factura|cobro|pago|balance|finanzas|caja|por\s*cobrar|movimientos|mes)/i.test(t);
   if (!sender.autorizado) {
     // Número compartido con OmniAccess: solo respondemos si parece un comando de Preventis; si no, silencio.
     return { authorized: false, resp: esComandoPreventis ? '👋 Soy el asistente de *Preventis*. Tu número no está autorizado todavía. Pedile al administrador que te habilite el acceso.' : null };
@@ -221,14 +372,20 @@ export async function handleIncoming(q, { from, texto, isGroup }) {
   if (/^(cancelar|cancel|salir)$/i.test(t)) { const had = sessions.delete(tel); return { authorized: true, resp: had ? '❌ Operación cancelada.' : 'No hay nada para cancelar. Escribí *ayuda*.' }; }
   // Si hay una conversación en curso, seguirla
   const sess = getSession(tel);
-  if (sess) return { authorized: true, resp: await continueFlow(q, tel, sess, t, sender) };
+  if (sess) return { authorized: true, resp: await continueFlow(q, tel, sess, t, sender, { ...helpers, media }) };
   // En grupos, solo responder a comandos explícitos (evita contestar cada mensaje)
-  if (isGroup && !/^(ayuda|hola|menu|buenas|buenos|estado|resumen|visitas|agenda|mi\s|fallas|tickets?\b|cliente\s|nuevo|nueva|crear|agendar|cancelar)/i.test(t)) {
+  if (isGroup && !esComandoPreventis) {
     return { authorized: true, resp: null };
   }
   // Iniciar flujos
   if (/^(nuevo\s*ticket|ticket\s+nuevo|crear\s+ticket)$/i.test(t)) return { authorized: true, resp: startTicket(tel) };
   if (/^(nueva\s*visita|visita\s+nueva|crear\s+visita|agendar\s+visita)$/i.test(t)) return { authorized: true, resp: startVisita(tel) };
+  // Flujos de finanzas (solo numeros admin)
+  if (esAdminBot(sender)) {
+    if (/^(nueva?\s*factura|crear\s+factura|registrar\s+factura)$/i.test(t)) return { authorized: true, resp: startFactura(tel) };
+    if (/^(nuevo\s*cobro|cobro\s+nuevo|crear\s+cobro|registrar\s+cobro)$/i.test(t)) return { authorized: true, resp: startCobro(tel) };
+    if (/^(nuevo\s*pago|pago\s+nuevo|crear\s+pago|registrar\s+pago)$/i.test(t)) return { authorized: true, resp: startPago(tel) };
+  }
   // Comandos sueltos (usar el texto ya sin mención)
   const resp = await processCommand(q, t, sender);
   return { authorized: true, resp };
