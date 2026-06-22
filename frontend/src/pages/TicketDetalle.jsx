@@ -5,6 +5,7 @@ import { Loading } from '../components/ui.jsx';
 import { Icon } from '../components/icons.jsx';
 import { toast } from '../components/toast.jsx';
 import { PRIO, EST, PrioIcon, TkAvatar, ConfirmModal, fmtDur, TicketFacturacion } from './Tickets.jsx';
+import { AgendarModal } from './Visitas.jsx';
 
 const FLUJO = [['abierto', 'Abierto', 'alert'], ['en_proceso', 'En proceso', 'clock'], ['esperando_cliente', 'Esperando cliente', 'phone'], ['resuelto', 'Resuelto', 'checkCircle'], ['cerrado', 'Cerrado', 'check']];
 
@@ -17,6 +18,8 @@ export default function TicketDetalle() {
   const [t, setT] = useState(null);
   const [visitas, setVisitas] = useState([]);
   const [clientes, setClientes] = useState([]);
+  const [tecnicos, setTecnicos] = useState([]);
+  const [convNuevo, setConvNuevo] = useState(null);
   const [usuarios, setUsuarios] = useState([]);
   const [perfil, setPerfil] = useState(null);
   const [equipos, setEquipos] = useState(null);
@@ -35,6 +38,7 @@ export default function TicketDetalle() {
   useEffect(() => {
     load(); loadC();
     api.get('/api/clientes').then(setClientes);
+    api.get('/api/tecnicos').then(setTecnicos).catch(() => {});
     api.get('/api/usuarios/lista').then(setUsuarios).catch(() => {});
     api.get('/api/perfil').then(setPerfil).catch(() => {});
     api.get('/api/tickets/' + id + '/visitas').then(setVisitas).catch(() => setVisitas([]));
@@ -84,15 +88,19 @@ export default function TicketDetalle() {
     setSending(false);
   };
   const borrar = async () => { try { await api.del('/api/tickets/' + id); toast.ok('Ticket eliminado'); nav('/tickets'); } catch (e) { toast.err(e.message); } };
-  const convertir = async () => {
+  // Abre el modal "Agendar visita" prellenado con el ticket, para elegir 1 o varios días.
+  const convertir = () => {
     if (!t.cliente_id) { toast.err('Asocia un cliente al ticket primero'); return; }
+    setConvNuevo({ cliente_id: t.cliente_id, fecha: new Date().toISOString().slice(0, 10), tipo: 'correctiva', titulo: t.titulo || '', situacion_inicial: t.descripcion || '', ticket_id: t.id, asignada_por: 'Ticket TK-' + t.id, fecha_max_resolucion: t.fecha_max_resolucion || null });
+  };
+  const guardarVisitaTicket = async (f) => {
     try {
-      const v = await api.post('/api/clientes/' + t.cliente_id + '/visitas', { fecha: new Date().toISOString().slice(0, 10), tipo: 'correctiva', titulo: t.titulo || null, situacion_inicial: t.descripcion || null, asignada_por: 'Ticket TK-' + t.id, ticket_id: t.id, fecha_max_resolucion: t.fecha_max_resolucion || null });
+      const v = await api.post('/api/clientes/' + f.cliente_id + '/visitas', { fecha: f.fecha || null, dias: f.dias || null, tecnico_id: f.tecnico_id || null, tipo: 'correctiva', titulo: f.titulo || null, situacion_inicial: f.situacion_inicial || null, ticket_id: f.ticket_id || null, asignada_por: f.asignada_por || null, fecha_max_resolucion: f.fecha_max_resolucion || null, contrato_id: f.contrato_id || null });
       const fd = new FormData(); fd.append('texto', 'Convirtio el ticket en la visita correctiva #' + v.id);
       await api.upload('/api/tickets/' + id + '/comentarios', fd).catch(() => {});
       if (t.estado === 'abierto') await api.put('/api/tickets/' + id, { ...t, estado: 'en_proceso' }).catch(() => {});
-      toast.ok('Visita correctiva creada');
-      api.get('/api/tickets/' + id + '/visitas').then(setVisitas).catch(() => {});
+      toast.ok(f.dias && f.dias.length > 1 ? 'Visita de ' + f.dias.length + ' días creada' : 'Visita correctiva creada');
+      setConvNuevo(null);
       nav('/visitas/' + v.id);
     } catch (e) { toast.err(e.message); }
   };
@@ -288,6 +296,7 @@ export default function TicketDetalle() {
         </aside>
       </div>
       {confBorrar && <ConfirmModal titulo={'Eliminar TK-' + t.id} mensaje={'Se eliminara el ticket "' + (t.titulo || '') + '" con todos sus comentarios y adjuntos. Esta accion no se puede deshacer.'} onConfirm={borrar} onClose={() => setConfBorrar(false)} />}
+      {convNuevo && <AgendarModal nuevo={convNuevo} clientes={clientes} tecnicos={tecnicos} onClose={() => setConvNuevo(null)} onSave={guardarVisitaTicket} />}
     </div>
   );
 }

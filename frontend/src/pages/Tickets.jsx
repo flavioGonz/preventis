@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { PageHeader, Loading, Empty, Modal, Field } from '../components/ui.jsx';
 import { Icon } from '../components/icons.jsx';
 import { toast } from '../components/toast.jsx';
+import { AgendarModal } from './Visitas.jsx';
 
 export const PRIO = { baja: ['Baja', '#2563eb'], media: ['Media', '#ea580c'], alta: ['Alta', '#dc2626'] };
 export const EST = { abierto: ['warn', 'Abierto', 'alert'], en_proceso: ['info', 'En proceso', 'clock'], esperando_cliente: ['warn', 'Esperando cliente', 'phone'], resuelto: ['ok', 'Resuelto', 'checkCircle'], cerrado: ['gris', 'Cerrado', 'check'] };
@@ -66,6 +67,8 @@ export default function Tickets() {
   const nav = useNavigate();
   const [items, setItems] = useState(null);
   const [clientes, setClientes] = useState([]);
+  const [tecnicos, setTecnicos] = useState([]);
+  const [convNuevo, setConvNuevo] = useState(null);
   const [tecAv, setTecAv] = useState({});
   const [usuarios, setUsuarios] = useState([]);
   const [estado, setEstado] = useState('');
@@ -79,6 +82,7 @@ export default function Tickets() {
   const load = () => api.get('/api/tickets').then(setItems);
   useEffect(() => {
     api.get('/api/clientes').then(setClientes);
+    api.get('/api/tecnicos').then(setTecnicos).catch(() => {});
     api.get('/api/usuarios/lista').then(us => {
       setUsuarios(us || []);
       const m = {}; (us || []).forEach(u => { if (u.avatar_path) { m[u.nombre] = u.avatar_path; m[u.username] = u.avatar_path; } });
@@ -94,14 +98,20 @@ export default function Tickets() {
     catch (e) { toast.err(e.message); }
   };
   const del = async (t) => { try { await api.del('/api/tickets/' + t.id); toast.ok('Ticket TK-' + t.id + ' eliminado'); setABorrar(null); load(); } catch (e) { toast.err(e.message); } };
-  const convertir = async (t) => {
+  // Abre el modal "Agendar visita" prellenado con el ticket, para poder elegir 1 o varios días.
+  const convertir = (t) => {
     if (!t.cliente_id) { toast.err('El ticket no tiene cliente asociado'); return; }
+    setConvNuevo({ cliente_id: t.cliente_id, fecha: new Date().toISOString().slice(0, 10), tipo: 'correctiva', titulo: t.titulo || '', situacion_inicial: t.descripcion || '', ticket_id: t.id, asignada_por: 'Ticket TK-' + t.id, fecha_max_resolucion: t.fecha_max_resolucion || null, _ticket: t });
+  };
+  const guardarVisitaTicket = async (f) => {
+    const t = f._ticket || {};
     try {
-      const v = await api.post('/api/clientes/' + t.cliente_id + '/visitas', { fecha: new Date().toISOString().slice(0, 10), tipo: 'correctiva', titulo: t.titulo || null, situacion_inicial: t.descripcion || null, asignada_por: 'Ticket TK-' + t.id, ticket_id: t.id, fecha_max_resolucion: t.fecha_max_resolucion || null });
+      const v = await api.post('/api/clientes/' + f.cliente_id + '/visitas', { fecha: f.fecha || null, dias: f.dias || null, tecnico_id: f.tecnico_id || null, tipo: 'correctiva', titulo: f.titulo || null, situacion_inicial: f.situacion_inicial || null, ticket_id: f.ticket_id || null, asignada_por: f.asignada_por || null, fecha_max_resolucion: f.fecha_max_resolucion || null, contrato_id: f.contrato_id || null });
       const fd = new FormData(); fd.append('texto', 'Convirtio el ticket en la visita correctiva #' + v.id);
       await api.upload('/api/tickets/' + t.id + '/comentarios', fd).catch(() => {});
       if (t.estado === 'abierto') await api.put('/api/tickets/' + t.id, { ...t, estado: 'en_proceso' }).catch(() => {});
-      toast.ok('Visita correctiva creada');
+      toast.ok(f.dias && f.dias.length > 1 ? 'Visita de ' + f.dias.length + ' días creada' : 'Visita correctiva creada');
+      setConvNuevo(null);
       nav('/visitas/' + v.id);
     } catch (e) { toast.err(e.message); }
   };
@@ -205,6 +215,7 @@ export default function Tickets() {
 
       {modal && <TicketModal ticket={modal} clientes={clientes} usuarios={usuarios} onClose={() => setModal(null)} onSave={save} />}
       {aBorrar && <ConfirmModal titulo={'Eliminar TK-' + aBorrar.id} mensaje={'Se eliminara el ticket "' + aBorrar.titulo + '" con todos sus comentarios y adjuntos. Esta accion no se puede deshacer.'} onConfirm={() => del(aBorrar)} onClose={() => setABorrar(null)} />}
+      {convNuevo && <AgendarModal nuevo={convNuevo} clientes={clientes} tecnicos={tecnicos} onClose={() => setConvNuevo(null)} onSave={guardarVisitaTicket} />}
     </div>
   );
 }
