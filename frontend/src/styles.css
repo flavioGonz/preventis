@@ -977,7 +977,11 @@ body, .sidebar, .topbar-m, .bottomnav, .card, .wa-wrap, .cal, .cfg-nav, .drawer,
 .tb-chip:hover { transform:translateY(-1px); box-shadow:0 3px 8px rgba(15,23,42,.18); }
 .tb-chip { min-width:0; max-width:100%; }
 .tb-chip svg, .tb-chip .cal-dia, .tb-chip .tb-corr { flex:none; }
-.tb-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+.tb-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; flex:1 1 auto; }
+/* Las celdas son items del grid: necesitan min-width:0 para que la columna no crezca con el texto largo
+   (si no, el chip empuja la columna y se corta la semana). Con esto el chip se recorta visualmente. */
+.tb-cell { min-width:0; overflow:hidden; }
+.tb-grid { min-width:0; }
 .tb-chip.tb-ok { background:var(--ok-bg); color:var(--ok); border-color:var(--ok-bd); }
 .tb-chip.tb-prog { background:var(--info-bg); color:var(--info); border-color:var(--info-bd); }
 .tb-chip.tb-pend { background:var(--surface-2); color:var(--muted); border-color:var(--border-strong); }
