@@ -424,8 +424,8 @@ function Calendario({ visitas, tecnicos = [], onOpen, onReschedule, onReassign, 
   const evChip = (v) => { const [c] = EST[v.estado] || EST.programada; return (
     <div key={v.id + '-' + (v._dia || 0)} className={'cal-ev ' + c + (esVenc(v) ? ' venc' : '') + (v._diaTot ? ' multi' : '')} draggable={!v._diaTot} onDragStart={e => { if (v._diaTot) { e.preventDefault(); return; } e.stopPropagation(); e.dataTransfer.setData('text/plain', String(v.id)); }}
       onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtx({ x: e.clientX, y: e.clientY, v }); }}
-      onClick={e => { e.stopPropagation(); onOpen(v.id); }} title={v.cliente + (v._diaTot ? ' · Dia ' + v._dia + '/' + v._diaTot : '') + ' - ' + (v.tecnico || '')}>
-      <span className="dot" />{v._diaTot ? <b className="cal-dia">D{v._dia}/{v._diaTot}</b> : null}{v.cliente}{v.tecnico ? ' · ' + v.tecnico : ''}
+      onClick={e => { e.stopPropagation(); onOpen(v.id); }} title={(v.titulo ? v.titulo + ' · ' : '') + v.cliente + (v._diaTot ? ' · Dia ' + v._dia + '/' + v._diaTot : '') + ' - ' + (v.tecnico || '')}>
+      <span className="dot" />{v._diaTot ? <b className="cal-dia">D{v._dia}/{v._diaTot}</b> : null}{v.titulo || v.cliente}{v.tecnico ? ' · ' + v.tecnico : ''}
     </div>
   ); };
 
@@ -497,8 +497,8 @@ function Calendario({ visitas, tecnicos = [], onOpen, onReschedule, onReassign, 
                           if (enCelda && onReorder) { const ids = evs.map(x => x.id).filter(x => x !== id); ids.splice(ids.indexOf(v.id), 0, id); onReorder(ids); }
                           else if (onReassign) { onReassign(id, k, f.id); } }}
                         onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtx({ x: e.clientX, y: e.clientY, v }); }}
-                        onClick={e => { e.stopPropagation(); onOpen(v.id); }} title={v.cliente + (v._diaTot ? ' · Dia ' + v._dia + '/' + v._diaTot : '') + (v.tipo === 'correctiva' ? ' · Correctiva' : '')}>
-                        <Icon name={ic} size={11} />{v.tipo === 'correctiva' && <span className="tb-corr" />}{v._diaTot ? <b className="cal-dia">D{v._dia}/{v._diaTot}</b> : null}{v.cliente}
+                        onClick={e => { e.stopPropagation(); onOpen(v.id); }} title={(v.titulo ? v.titulo + ' · ' : '') + v.cliente + (v._diaTot ? ' · Dia ' + v._dia + '/' + v._diaTot : '') + (v.tipo === 'correctiva' ? ' · Correctiva' : '')}>
+                        <Icon name={ic} size={11} />{v.tipo === 'correctiva' && <span className="tb-corr" />}{v._diaTot ? <b className="cal-dia">D{v._dia}/{v._diaTot}</b> : null}<span className="tb-name">{v.titulo || v.cliente}</span>
                       </div>
                     ); })}
                   </div>

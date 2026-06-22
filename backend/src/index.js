@@ -143,6 +143,15 @@ app.put('/api/clientes/:id', wrap(async (req, res) => {
      rut ?? null, empresa_monitoreo ?? null, nro_abonado ?? null]);
   res.json(r.rows[0]);
 }));
+// Eliminar cliente (solo admin). Borra en cascada equipos, visitas, contratos, contactos y archivos del cliente.
+app.delete('/api/clientes/:id', wrap(async (req, res) => {
+  if (req.user?.rol !== 'admin') return res.status(403).json({ error: 'Solo un administrador puede eliminar clientes' });
+  const r = await q('DELETE FROM clientes WHERE id=$1 RETURNING nombre', [req.params.id]);
+  if (!r.rows[0]) return res.status(404).json({ error: 'Cliente no encontrado' });
+  q("INSERT INTO auditoria (usuario,rol,metodo,ruta,status,detalle) VALUES ($1,$2,'DELETE','/clientes',200,$3)",
+    [req.user?.username || '?', req.user?.rol || '?', ('Eliminó cliente ' + req.params.id + ' (' + (r.rows[0].nombre || '') + ')').slice(0, 300)]).catch(() => {});
+  res.json({ ok: true });
+}));
 
 // ============== Equipos ==============
 app.get('/api/clientes/:id/equipos', wrap(async (req, res) => {

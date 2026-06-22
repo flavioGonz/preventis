@@ -6,6 +6,7 @@ import { Icon } from '../components/icons.jsx';
 import { toast } from '../components/toast.jsx';
 import Drawer from '../components/Drawer.jsx';
 import ImportClientes from '../components/ImportClientes.jsx';
+import { getUser } from '../auth.js';
 
 const FRECUENCIAS = ['mensual', 'bimestral', 'trimestral', 'semestral', 'anual', 'sin'];
 const FREC_LABEL = { mensual: 'Mensual', bimestral: 'Bimestral', trimestral: 'Trimestral', semestral: 'Semestral', anual: 'Anual', sin: 'Sin frecuencia' };
@@ -21,6 +22,8 @@ export default function Clientes() {
   useEffect(() => { const fn = () => setEsDesk(window.innerWidth >= 900); window.addEventListener('resize', fn); return () => window.removeEventListener('resize', fn); }, []);
   const [verContrato, setVerContrato] = useState(null);
   const [importar, setImportar] = useState(false);
+  const [aBorrar, setABorrar] = useState(null);
+  const esAdmin = getUser()?.rol === 'admin';
   const nav = useNavigate();
 
   const load = () => {
@@ -77,7 +80,7 @@ export default function Clientes() {
               <span style={{ width: 152 }}>Contrato</span>
               <span style={{ width: 90, textAlign: 'right' }}>Ult. visita</span>
               <span style={{ width: 90, textAlign: 'right' }}>Proxima</span>
-              <span style={{ width: 34 }} />
+              <span style={{ width: esAdmin ? 66 : 34 }} />
             </div>
             {clientes.map(c => (
               <div key={c.id} className="tkl-row" onClick={() => nav('/clientes/' + c.id)}>
@@ -96,8 +99,9 @@ export default function Clientes() {
                 <span style={{ width: 152, flex: 'none' }}>{c.contrato_id ? <button className="btn ghost sm" style={{ maxWidth: '100%', padding: '3px 8px', height: 'auto', gap: 5 }} data-tip="Ver contrato" onClick={e => { e.stopPropagation(); setVerContrato({ cliente_id: c.id, contrato_id: c.contrato_id }); }}><Icon name="file" size={13} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.contrato_titulo || 'Contrato'}</span></button> : <span className="subtle" style={{ fontSize: 12 }}>Sin contrato</span>}</span>
                 <span className="tkl-date mono" style={{ width: 90 }}>{c.ultima_visita ? new Date(c.ultima_visita).toLocaleDateString('es-UY') : '—'}</span>
                 <span className="tkl-date mono" style={{ width: 90, color: c.proxima_visita ? 'var(--brand-700)' : 'var(--subtle)', fontWeight: c.proxima_visita ? 600 : 400 }}>{c.proxima_visita ? new Date(c.proxima_visita).toLocaleDateString('es-UY') : '—'}</span>
-                <span className="row tkl-acts" style={{ gap: 0, width: 34 }}>
+                <span className="row tkl-acts" style={{ gap: 0, width: esAdmin ? 66 : 34 }}>
                   <button className="btn ghost icon tkl-del" data-tip="Editar" aria-label="Editar" onClick={e => { e.stopPropagation(); setModal({ ...c }); }}><Icon name="edit" size={15} /></button>
+                  {esAdmin && <button className="btn ghost icon tkl-del" data-tip="Eliminar cliente" aria-label="Eliminar" onClick={e => { e.stopPropagation(); setABorrar(c); }}><Icon name="trash" size={15} /></button>}
                 </span>
               </div>
             ))}
@@ -122,6 +126,7 @@ export default function Clientes() {
                       <span className="pill-freq">{FREC_LABEL[c.frecuencia] || c.frecuencia}</span>
                       {Number(c.equipos) > 0 && <span className="wa-count" style={{ background: Number(c.fallas) > 0 ? 'var(--falla)' : 'var(--brand-600)' }}>{c.equipos}</span>}
                       <button className="btn ghost icon" data-tip="Editar" aria-label="Editar" onClick={e => { e.stopPropagation(); setModal({ ...c }); }}><Icon name="edit" size={15} /></button>
+                      {esAdmin && <button className="btn ghost icon" data-tip="Eliminar" aria-label="Eliminar" onClick={e => { e.stopPropagation(); setABorrar(c); }}><Icon name="trash" size={15} /></button>}
                     </span>
                   </div>
                 </div>
@@ -145,7 +150,50 @@ export default function Clientes() {
       {modal && <ClienteModal cliente={modal} onClose={() => setModal(null)} onSave={save} />}
       {verContrato && <ContratoModal {...verContrato} onClose={() => setVerContrato(null)} />}
       {importar && <ImportClientes onClose={() => setImportar(false)} onDone={load} />}
+      {aBorrar && <BorrarClienteModal cliente={aBorrar} onClose={() => setABorrar(null)} onDone={() => { setABorrar(null); load(); }} />}
     </div>
+  );
+}
+
+// Modal de borrado de cliente: exige escribir "borrar" para confirmar (acción irreversible).
+function BorrarClienteModal({ cliente, onClose, onDone }) {
+  const [txt, setTxt] = useState('');
+  const [busy, setBusy] = useState(false);
+  const ok = txt.trim().toLowerCase() === 'borrar';
+  const touched = txt.length > 0;
+  const go = async () => {
+    if (!ok) return;
+    setBusy(true);
+    try { await api.del('/api/clientes/' + cliente.id); toast.ok('Cliente eliminado'); onDone(); }
+    catch (e) { toast.err(e.message); setBusy(false); }
+  };
+  const borde = ok ? 'var(--ok)' : touched ? 'var(--falla)' : 'var(--border)';
+  return (
+    <Modal size="sm" onClose={onClose}
+      footer={<>
+        <button className="btn ghost" onClick={onClose} disabled={busy}>Cancelar</button>
+        <button className="btn danger" disabled={!ok || busy} onClick={go}><Icon name="trash" size={15} />{busy ? 'Eliminando…' : 'Eliminar cliente'}</button>
+      </>}>
+      <div style={{ textAlign: 'center', padding: '4px 4px 2px' }}>
+        <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'var(--falla-bg)', color: 'var(--falla)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12, boxShadow: '0 0 0 6px var(--falla-bg)' }}>
+          <Icon name="trash" size={26} />
+        </div>
+        <h3 style={{ margin: '0 0 4px', fontSize: 18 }}>¿Eliminar este cliente?</h3>
+        <div className="muted" style={{ fontSize: 13.5 }}><b style={{ color: 'var(--text)' }}>{cliente.nombre}</b></div>
+      </div>
+      <div style={{ margin: '14px 0', padding: '11px 13px', background: 'var(--falla-bg)', border: '1px solid var(--falla-bd)', borderRadius: 12, display: 'flex', gap: 10 }}>
+        <Icon name="alert" size={18} color="var(--falla)" />
+        <div style={{ fontSize: 13, lineHeight: 1.45 }}>
+          Se eliminarán también <b>todos sus equipos, visitas, contratos, contactos y archivos</b>. Esta acción <b>no se puede deshacer</b>.
+        </div>
+      </div>
+      <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+        Escribí <span style={{ color: 'var(--falla)', fontFamily: 'monospace' }}>borrar</span> para confirmar
+      </label>
+      <input value={txt} autoFocus placeholder="borrar" onChange={e => setTxt(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter' && ok) go(); }}
+        style={{ width: '100%', textAlign: 'center', letterSpacing: 2, fontWeight: 600, padding: '11px 12px', borderRadius: 10, border: '2px solid ' + borde, outline: 'none', transition: 'border-color .15s' }} />
+    </Modal>
   );
 }
 
