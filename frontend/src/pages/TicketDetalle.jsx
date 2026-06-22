@@ -87,7 +87,7 @@ export default function TicketDetalle() {
   const convertir = async () => {
     if (!t.cliente_id) { toast.err('Asocia un cliente al ticket primero'); return; }
     try {
-      const v = await api.post('/api/clientes/' + t.cliente_id + '/visitas', { fecha: new Date().toISOString().slice(0, 10), tipo: 'correctiva', asignada_por: 'Ticket TK-' + t.id, ticket_id: t.id, fecha_max_resolucion: t.fecha_max_resolucion || null });
+      const v = await api.post('/api/clientes/' + t.cliente_id + '/visitas', { fecha: new Date().toISOString().slice(0, 10), tipo: 'correctiva', titulo: t.titulo || null, situacion_inicial: t.descripcion || null, asignada_por: 'Ticket TK-' + t.id, ticket_id: t.id, fecha_max_resolucion: t.fecha_max_resolucion || null });
       const fd = new FormData(); fd.append('texto', 'Convirtio el ticket en la visita correctiva #' + v.id);
       await api.upload('/api/tickets/' + id + '/comentarios', fd).catch(() => {});
       if (t.estado === 'abierto') await api.put('/api/tickets/' + id, { ...t, estado: 'en_proceso' }).catch(() => {});
