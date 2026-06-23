@@ -48,7 +48,7 @@ export async function buildInformePDF(visitaId, uploadDir) {
     FROM pruebas p JOIN equipos e ON e.id=p.equipo_id
     LEFT JOIN sistemas s ON s.id=e.sistema_id LEFT JOIN tipos_elemento te ON te.id=e.tipo_elemento_id
     LEFT JOIN estados_equipo est ON est.id=p.estado_id
-    WHERE p.visita_id=$1 ORDER BY est.es_falla DESC NULLS LAST, e.etiqueta`, [visitaId])).rows;
+    WHERE p.visita_id=$1 ORDER BY s.nombre NULLS LAST, te.nombre NULLS LAST, e.etiqueta`, [visitaId])).rows;
   const fotosVisita = (await q(`SELECT * FROM visita_archivos WHERE visita_id=$1 AND tipo='foto' ORDER BY id`, [visitaId])).rows;
 
   const doc = new PDFDocument({ size: 'A4', margin: 46, bufferPages: true });
@@ -185,7 +185,7 @@ export async function buildInformePDF(visitaId, uploadDir) {
   // Tabla de equipos (sobria) - siempre arranca en pagina nueva
   doc.addPage(); runningHeader();
   seccion('Equipos probados');
-  const cols = [{ t: 'Etiqueta', w: 92, mono: true }, { t: 'Sistema', w: 90 }, { t: 'Tipo', w: 86 }, { t: 'Estado', w: 80 }, { t: 'Comentarios', w: CW - 92 - 90 - 86 - 80 }];
+  const cols = [{ t: 'Sistema', w: 90 }, { t: 'Etiqueta', w: 92, mono: true }, { t: 'Tipo', w: 86 }, { t: 'Estado', w: 80 }, { t: 'Comentarios', w: CW - 92 - 90 - 86 - 80 }];
   const fila = (vals, o = {}) => {
     // Altura dinamica: la fila se expande para que ningun dato quede cortado (hasta ~4 lineas)
     let h;
@@ -217,7 +217,7 @@ export async function buildInformePDF(visitaId, uploadDir) {
   fila(cols.map(c => c.t), { header: true });
   if (!pruebas.length) { doc.font('Helvetica-Oblique').fontSize(9.5).fillColor(GRIS).text('Sin pruebas registradas en esta visita.', ML + 7, doc.y + 6); doc.y += 24; }
   pruebas.forEach((p, i) => {
-    fila([p.etiqueta, p.sistema, p.tipo_elemento, p.estado, p.comentarios], { falla: p.es_falla, zebra: i % 2 === 1 });
+    fila([p.sistema, p.etiqueta, p.tipo_elemento, p.estado, p.comentarios], { falla: p.es_falla, zebra: i % 2 === 1 });
   });
   // Totales (linea sobria)
   doc.moveDown(0.5);
