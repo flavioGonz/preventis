@@ -533,7 +533,7 @@ function Archivos({ clienteId, isAdmin }) {
         {fotos.map(a => (
           <div key={a.id} style={{ position: 'relative' }}>
             <a href={api.base + a.path} target="_blank" rel="noreferrer"><img className="thumb" src={api.base + a.path} /></a>
-            {isAdmin && <button className="btn danger icon" style={{ position: 'absolute', top: -6, right: -6, padding: 4, borderRadius: '50%' }} onClick={() => del(a)}><Icon name="x" size={12} /></button>}
+            <button className="btn danger icon" data-tip="Eliminar" aria-label="Eliminar" style={{ position: 'absolute', top: -6, right: -6, padding: 4, borderRadius: '50%' }} onClick={() => del(a)}><Icon name="x" size={12} /></button>
           </div>
         ))}
       </div>}
@@ -544,7 +544,7 @@ function Archivos({ clienteId, isAdmin }) {
               <Icon name={a.tipo === 'respaldo' ? 'box' : 'file'} size={15} />{a.filename}{a.descripcion ? ' - ' + a.descripcion : ''}
               <span className="badge gris">{a.tipo}</span>
             </a>
-            {isAdmin && <button className="btn ghost icon" onClick={() => del(a)}><Icon name="trash" size={16} /></button>}
+            <button className="btn ghost icon" data-tip="Eliminar" aria-label="Eliminar" onClick={() => del(a)}><Icon name="trash" size={16} /></button>
           </div>
         ))}
     </div>

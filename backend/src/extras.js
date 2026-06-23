@@ -965,7 +965,7 @@ export function mountExtras(app, q) {
     }
     res.status(201).json(out);
   }));
-  app.delete('/api/cliente_archivos/:id', authMiddleware, adminOnly, wrap(async (req, res) => {
+  app.delete('/api/cliente_archivos/:id', authMiddleware, wrap(async (req, res) => {
     await q('DELETE FROM cliente_archivos WHERE id=$1', [req.params.id]); res.json({ ok: true });
   }));
 
