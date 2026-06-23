@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
 import { getUser } from '../auth.js';
-import { PageHeader, Loading, Empty, Modal, Field } from '../components/ui.jsx';
+import { PageHeader, Loading, Empty, Modal, Field, ClienteSelect } from '../components/ui.jsx';
 import { Icon } from '../components/icons.jsx';
 import { toast } from '../components/toast.jsx';
 import Drawer from '../components/Drawer.jsx';
@@ -314,10 +314,7 @@ export function AgendarModal({ nuevo, clientes, tecnicos, onClose, onSave }) {
     <Modal title="Agendar visita" subtitle="Selecciona el cliente y la(s) fecha(s)" onClose={onClose}
       footer={<><button className="btn ghost" onClick={onClose}>Cancelar</button><button className="btn" onClick={guardar} disabled={!f.cliente_id}><Icon name="calendar" size={16} />Agendar{f.modo === 'varios' && dias.length ? ' (' + dias.length + ' dias)' : ''}</button></>}>
       <Field label={L('building', 'Cliente')}>
-        <select value={f.cliente_id} onChange={e => set('cliente_id', e.target.value)}>
-          <option value="">- Seleccionar cliente -</option>
-          {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-        </select>
+        <ClienteSelect clientes={clientes} value={f.cliente_id} onChange={v => set('cliente_id', v)} placeholder="Buscar cliente…" />
       </Field>
       <Field label={L('clock', 'Duracion')}>
         <div className="tipo-seg">

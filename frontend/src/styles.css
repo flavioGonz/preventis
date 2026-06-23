@@ -130,6 +130,24 @@ input::placeholder, textarea::placeholder { color:var(--subtle); }
 input:focus, select:focus, textarea:focus { outline:none; border-color:var(--brand-500);
   box-shadow:0 0 0 3px rgba(37,99,235,.14); }
 textarea { min-height:78px; resize:vertical; }
+/* Selector de cliente con búsqueda (combobox) */
+.cli-sel { position:relative; }
+.cli-sel-btn { width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 12px; border:1px solid var(--border-strong); border-radius:10px; background:var(--surface); color:var(--text); font-size:14px; cursor:pointer; text-align:left; transition:.13s; }
+.cli-sel-btn:hover { border-color:var(--brand-200); }
+.cli-sel-btn.open { border-color:var(--brand-500); box-shadow:0 0 0 3px rgba(37,99,235,.14); }
+.cli-sel-btn > span { min-width:0; flex:1; }
+.cli-sel-btn svg { flex:none; color:var(--subtle); transform:rotate(90deg); transition:transform .15s; }
+.cli-sel-btn.open svg { transform:rotate(-90deg); }
+.cli-sel-pop { position:absolute; z-index:60; top:calc(100% + 4px); left:0; right:0; background:var(--surface); border:1px solid var(--border); border-radius:12px; box-shadow:var(--sh-lg); overflow:hidden; }
+.cli-sel-search { display:flex; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid var(--border); color:var(--subtle); }
+.cli-sel-search input { border:none; padding:2px 0; background:transparent; font-size:14px; box-shadow:none; }
+.cli-sel-search input:focus { box-shadow:none; outline:none; }
+.cli-sel-list { max-height:240px; overflow:auto; padding:4px; }
+.cli-sel-item { display:block; width:100%; text-align:left; padding:8px 10px; border:none; background:transparent; color:var(--text); font-size:14px; border-radius:8px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cli-sel-item:hover { background:var(--surface-2); }
+.cli-sel-item.on { background:var(--brand-soft); color:var(--brand-700); font-weight:600; }
+.cli-sel-empty { padding:12px; text-align:center; color:var(--subtle); font-size:13px; }
+
 /* Editor de texto enriquecido */
 .rt-wrap { border:1px solid var(--border-strong); border-radius:10px; background:var(--surface); overflow:hidden; transition:.13s; }
 .rt-wrap:focus-within { border-color:var(--brand-500); box-shadow:0 0 0 3px rgba(37,99,235,.14); }

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { useNavigate } from 'react-router-dom';
-import { PageHeader, Loading, Empty, Modal, Field } from '../components/ui.jsx';
+import { PageHeader, Loading, Empty, Modal, Field, ClienteSelect } from '../components/ui.jsx';
 import { Icon } from '../components/icons.jsx';
 import { toast } from '../components/toast.jsx';
 import { AgendarModal } from './Visitas.jsx';
@@ -280,9 +280,7 @@ export function TicketModal({ ticket, clientes, usuarios = [], onClose, onSave }
           <Field label={<span className="flabel"><Icon name="ticket" size={13} />Titulo</span>}><input value={f.titulo || ''} onChange={e => set('titulo', e.target.value)} /></Field>
           <div className="grid2">
             <Field label={<span className="flabel"><Icon name="building" size={13} />Cliente</span>}>
-              <select value={f.cliente_id || ''} onChange={e => set('cliente_id', e.target.value)}>
-                <option value="">- Sin cliente -</option>{clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-              </select>
+              <ClienteSelect clientes={clientes} value={f.cliente_id} onChange={v => set('cliente_id', v)} placeholder="Buscar cliente…" allowEmpty />
             </Field>
             <Field label={<span className="flabel"><Icon name="users" size={13} />Asignado a</span>}>
               <select value={f.asignado || ''} onChange={e => set('asignado', e.target.value)}>

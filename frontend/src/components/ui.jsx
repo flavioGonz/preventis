@@ -1,6 +1,41 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './icons.jsx';
+
+// Selector de cliente con búsqueda (combobox). Reemplaza al <select> nativo cuando hay muchos clientes.
+export function ClienteSelect({ clientes = [], value, onChange, placeholder = 'Seleccionar cliente', allowEmpty = false }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const ref = useRef(null);
+  const sel = clientes.find(c => String(c.id) === String(value || ''));
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [open]);
+  const term = q.trim().toLowerCase();
+  const filt = (term ? clientes.filter(c => (c.nombre || '').toLowerCase().includes(term)) : clientes).slice(0, 60);
+  const pick = (id) => { onChange(id); setOpen(false); setQ(''); };
+  return (
+    <div className="cli-sel" ref={ref}>
+      <button type="button" className={'cli-sel-btn' + (open ? ' open' : '')} onClick={() => { setOpen(o => !o); setQ(''); }}>
+        <span className={sel ? '' : 'subtle'} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sel ? sel.nombre : placeholder}</span>
+        <Icon name="chevronRight" size={15} />
+      </button>
+      {open && (
+        <div className="cli-sel-pop">
+          <div className="cli-sel-search"><Icon name="search" size={15} /><input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar cliente..." /></div>
+          <div className="cli-sel-list">
+            {allowEmpty && <button type="button" className="cli-sel-item subtle" onClick={() => pick('')}>— Sin cliente —</button>}
+            {filt.length === 0 && <div className="cli-sel-empty">Sin resultados</div>}
+            {filt.map(c => <button type="button" key={c.id} className={'cli-sel-item' + (String(c.id) === String(value) ? ' on' : '')} onClick={() => pick(String(c.id))}>{c.nombre}</button>)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function Modal({ title, subtitle, children, onClose, footer, size }) {
   const node = (
