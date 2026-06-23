@@ -127,7 +127,7 @@ export default function ImportEquipos({ clienteId, onClose, onDone }) {
             </table>
           </div>
           <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-            Sólo se crearán las filas en estado <b>OK</b>. Los duplicados (misma etiqueta) se omiten.
+            Sólo se crearán las filas en estado <b>OK</b>. Se permiten etiquetas repetidas (no se omite ninguna por etiqueta).
           </div>
         </>
       )}

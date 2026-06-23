@@ -83,11 +83,10 @@ export async function buildEquiposTemplate() {
     '1. Completá una fila por equipo en la hoja "Equipos". Todos los campos son opcionales.',
     '2. Sistema y Tipo de elemento: elegí de la lista desplegable (vienen de los catálogos del sistema).',
     '   Si escribís un valor que no existe en el catálogo, el equipo se importa igual pero con ese campo vacío.',
-    '3. Etiqueta: se usa para detectar repetidos. Si ya existe un equipo con esa Etiqueta en este cliente, la fila se OMITE.',
-    '   Las filas sin Etiqueta siempre se crean.',
+    '3. Etiqueta: es opcional y se permiten etiquetas repetidas (todas las filas se crean, no se omite ninguna por etiqueta).',
     '4. El código QR de cada equipo se genera automáticamente al importar.',
     '5. Borrá la fila de ejemplo antes de importar.',
-    '6. Al importar verás una previsualización (a crear / duplicados). Nada se guarda hasta que confirmes.',
+    '6. Al importar verás una previsualización (a crear / con error). Nada se guarda hasta que confirmes.',
   ];
   lines.forEach((t, i) => { const r = ins.addRow([t]); if (i === 0) r.font = { bold: true, size: 14 }; });
 
@@ -144,12 +143,7 @@ function validateRow(datos, cat, existentesEtiq, seenEtiq) {
     if (!tipo_elemento_id) motivos.push('Tipo "' + tipo + '" no está en el catálogo — se deja vacío');
   }
 
-  let estado = 'ok';
-  if (etiqueta) {
-    const el = lc(etiqueta);
-    if (existentesEtiq.has(el) || seenEtiq.has(el)) { estado = 'duplicado'; motivos.push('Ya existe un equipo con esa etiqueta — se omite'); }
-    else seenEtiq.add(el);
-  }
+  const estado = 'ok'; // se permiten etiquetas duplicadas: todas las filas válidas se crean
 
   const limpio = {
     sistema, tipo_elemento: tipo, sistema_id, tipo_elemento_id,

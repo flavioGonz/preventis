@@ -313,6 +313,10 @@ function Equipos({ clienteId, user }) {
       setModal(null); toast.ok('Equipo guardado'); load();
     } catch (e) { toast.err(e.message); }
   };
+  const del = async (e) => {
+    if (!confirm('Eliminar el equipo "' + (e.etiqueta || e.codigo_qr || '') + '"? Se quitará de la lista del cliente.')) return;
+    try { await api.del('/api/equipos/' + e.id); toast.ok('Equipo eliminado'); load(); } catch (err) { toast.err(err.message); }
+  };
   const importExcel = async (e) => {
     const file = e.target.files[0]; if (!file) return;
     const fd = new FormData(); fd.append('file', file);
@@ -369,6 +373,7 @@ function Equipos({ clienteId, user }) {
                       <td>{estadoBadge(e.ultimo_estado, e.ultima_falla)}</td>
                       <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
                         <button className="btn ghost icon" data-tip="Editar" aria-label="Editar" onClick={ev => { ev.stopPropagation(); setModal({ ...e }); }}><Icon name="edit" size={16} /></button>
+                        <button className="btn ghost icon" data-tip="Eliminar equipo" aria-label="Eliminar" onClick={ev => { ev.stopPropagation(); del(e); }}><Icon name="trash" size={16} /></button>
                         <Icon name="chevronRight" size={16} color="var(--subtle)" />
                       </td>
                     </tr>
