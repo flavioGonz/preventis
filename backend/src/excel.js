@@ -142,3 +142,61 @@ export async function exportPruebasExcel({ clienteId, visitaId, desde, hasta }) 
   ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: NC } };
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
+
+// ---- Inventario de equipos a Excel: 1 hoja, cada equipo seguido de su historial de eventos ----
+export async function exportInventarioExcel(filtros = {}) {
+  const cond = ['e.activo'], params = [];
+  if (filtros.cliente_id) { params.push(filtros.cliente_id); cond.push('e.cliente_id=$' + params.length); }
+  if (filtros.sistema_id) { params.push(filtros.sistema_id); cond.push('e.sistema_id=$' + params.length); }
+  if (filtros.search) { params.push('%' + filtros.search + '%'); cond.push('(e.etiqueta ILIKE $' + params.length + ' OR e.codigo_qr ILIKE $' + params.length + ' OR e.modelo ILIKE $' + params.length + ')'); }
+  if (filtros.estado) {
+    const es = String(filtros.estado);
+    if (es === 'falla') cond.push('u.ultima_falla');
+    else if (es === 'ok') cond.push('(u.ultima_fecha IS NOT NULL AND NOT u.ultima_falla)');
+    else if (es === 'sin_probar') cond.push('u.ultima_fecha IS NULL');
+    else { params.push(es); cond.push('u.ultimo_estado=$' + params.length); }
+  }
+  const where = 'WHERE ' + cond.join(' AND ');
+  const equipos = (await q(`
+    SELECT e.id, e.etiqueta, e.codigo_qr, e.direccion, e.grupo, e.subgrupo, e.modelo,
+           c.nombre AS cliente, s.nombre AS sistema, te.nombre AS tipo_elemento,
+           u.ultima_fecha, u.ultimo_estado, u.ultima_falla
+    FROM equipos e
+    LEFT JOIN clientes c ON c.id=e.cliente_id LEFT JOIN sistemas s ON s.id=e.sistema_id
+    LEFT JOIN tipos_elemento te ON te.id=e.tipo_elemento_id LEFT JOIN v_ultima_prueba u ON u.equipo_id=e.id
+    ${where} ORDER BY c.nombre, s.nombre, e.etiqueta LIMIT 5000`, params)).rows;
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Preventis';
+  const ws = wb.addWorksheet('Inventario');
+  ws.columns = [{ width: 28 }, { width: 24 }, { width: 48 }, { width: 18 }];
+  const fdate = (d) => { try { return d ? new Date(d).toLocaleDateString('es-UY') : '—'; } catch { return '—'; } };
+  const fillRow = (row, argb) => row.eachCell({ includeEmpty: true }, c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } }; });
+
+  for (const e of equipos) {
+    const h = ws.addRow([e.etiqueta || '(sin etiqueta)', e.sistema || '—', e.tipo_elemento || '—', e.codigo_qr || '']);
+    h.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11.5 };
+    fillRow(h, 'FF1F2937');
+    ws.addRow(['Cliente: ' + (e.cliente || '—'), 'Dirección: ' + (e.direccion || '—'), 'Grupo: ' + [e.grupo, e.subgrupo].filter(Boolean).join(' / ') || '—', 'Modelo: ' + (e.modelo || '—')]).font = { size: 10, color: { argb: 'FF475569' } };
+    const evs = (await q(`
+      SELECT COALESCE(p.fecha, v.fecha) AS fecha, est.nombre AS estado, est.es_falla, p.comentarios, v.fecha AS visita_fecha, v.id AS visita_id
+      FROM pruebas p
+      LEFT JOIN estados_equipo est ON est.id=p.estado_id
+      LEFT JOIN visitas v ON v.id=p.visita_id
+      WHERE p.equipo_id=$1 ORDER BY COALESCE(p.fecha, v.fecha) DESC NULLS LAST, p.id DESC`, [e.id])).rows;
+    const eh = ws.addRow(['Fecha', 'Estado', 'Comentario', 'Visita']);
+    eh.font = { bold: true, size: 10, color: { argb: 'FF334155' } };
+    fillRow(eh, 'FFEEF2F7');
+    if (!evs.length) {
+      ws.addRow(['—', 'Sin pruebas registradas', '', '']).font = { italic: true, color: { argb: 'FF94A3B8' } };
+    } else {
+      for (const ev of evs) {
+        const r = ws.addRow([fdate(ev.fecha), ev.estado || '—', ev.comentarios || '', ev.visita_id ? ('V-' + String(ev.visita_id).padStart(5, '0') + ' · ' + fdate(ev.visita_fecha)) : '']);
+        if (ev.es_falla) r.getCell(2).font = { color: { argb: 'FFDC2626' }, bold: true };
+      }
+    }
+    ws.addRow([]);
+  }
+  if (!equipos.length) ws.addRow(['Sin equipos para los filtros seleccionados.']);
+  return Buffer.from(await wb.xlsx.writeBuffer());
+}

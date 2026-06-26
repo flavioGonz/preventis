@@ -35,6 +35,7 @@ export default function Inventario() {
         <button className={'btn-filter' + (filtCount ? ' on' : '')} onClick={() => setSheet(true)}>
           <Icon name="filter" size={16} />Filtros{filtCount ? <span className="fc">{filtCount}</span> : null}
         </button>
+        <a className="btn sec" href={api.fileUrl('/api/inventario/export.xlsx?' + new URLSearchParams(Object.fromEntries(Object.entries(f).filter(([, v]) => v))))} data-tip="Exportar a Excel con historial de eventos"><Icon name="download" size={16} />Exportar</a>
       </div>
 
       <Drawer open={sheet} onClose={() => setSheet(false)} title="Filtros" side="bottom"

@@ -153,6 +153,8 @@ export default function TicketDetalle() {
               value={t.descripcion || ''} onChange={e => set('descripcion', e.target.value)} />
           </div>
 
+          <TicketArchivos ticketId={id} />
+
           <div className="card" style={{ paddingTop: 14 }}>
             <TicketFacturacion f={t} set={set} />
           </div>
@@ -169,7 +171,7 @@ export default function TicketDetalle() {
             {eqOpen && (equipos === null ? <Loading rows={2} header={false} /> :
               equipos.length === 0 ? <div className="muted" style={{ fontSize: 13 }}>Este cliente no tiene equipos cargados.</div> :
                 <div className="tkd-eqs">
-                  {equipos.map(e => (
+                  {[...equipos].sort((a, b) => (b.ultima_falla ? 1 : 0) - (a.ultima_falla ? 1 : 0)).map(e => (
                     <div key={e.id} className="tkd-eq" onClick={() => nav('/equipos/' + e.id)}>
                       <span className={'tkd-eq-dot' + (e.ultima_falla ? ' falla' : e.ultimo_estado ? ' ok' : '')} />
                       <div style={{ minWidth: 0, flex: 1 }}>
@@ -297,6 +299,59 @@ export default function TicketDetalle() {
       </div>
       {confBorrar && <ConfirmModal titulo={'Eliminar TK-' + t.id} mensaje={'Se eliminara el ticket "' + (t.titulo || '') + '" con todos sus comentarios y adjuntos. Esta accion no se puede deshacer.'} onConfirm={borrar} onClose={() => setConfBorrar(false)} />}
       {convNuevo && <AgendarModal nuevo={convNuevo} clientes={clientes} tecnicos={tecnicos} onClose={() => setConvNuevo(null)} onSave={guardarVisitaTicket} />}
+    </div>
+  );
+}
+
+// Fotos, videos y adjuntos del ticket (mismo formato que en las visitas).
+function TicketArchivos({ ticketId }) {
+  const [items, setItems] = useState(null);
+  const load = () => api.get('/api/tickets/' + ticketId + '/archivos').then(setItems).catch(() => setItems([]));
+  useEffect(() => { load(); }, [ticketId]);
+  const subir = async (e, tipo) => {
+    const files = e.target.files; if (!files.length) return;
+    const fd = new FormData(); [...files].forEach(f => fd.append('files', f)); fd.append('tipo', tipo);
+    try { await api.upload('/api/tickets/' + ticketId + '/archivos', fd); toast.ok('Subido'); load(); } catch (err) { toast.err(err.message); }
+    e.target.value = '';
+  };
+  const del = async (a) => { if (!confirm('Eliminar archivo?')) return; try { await api.del('/api/ticket_archivos/' + a.id); toast.ok('Eliminado'); load(); } catch (e) { toast.err(e.message); } };
+  const cap = async (id, txt) => {
+    const prev = (items || []).find(a => a.id === id);
+    if (!prev || (prev.comentario || '') === (txt || '')) return;
+    try { await api.put('/api/ticket_archivos/' + id, { comentario: txt }); setItems(v => (v || []).map(a => a.id === id ? { ...a, comentario: txt } : a)); } catch (e) { toast.err(e.message); }
+  };
+  const fotos = (items || []).filter(a => a.tipo === 'foto');
+  const adj = (items || []).filter(a => a.tipo !== 'foto');
+  return (
+    <div className="card">
+      <div className="row between wrap" style={{ marginBottom: 10, gap: 8 }}>
+        <div className="sec-head" style={{ marginBottom: 0 }}><span className="fc-ic"><Icon name="camera" size={17} /></span><b>Fotos y adjuntos</b></div>
+        <div className="row wrap" style={{ gap: 8 }}>
+          <label className="btn sec sm" style={{ cursor: 'pointer' }}><Icon name="camera" size={15} />Foto<input type="file" accept="image/*" multiple hidden onChange={e => subir(e, 'foto')} /></label>
+          <label className="btn sec sm" style={{ cursor: 'pointer' }}><Icon name="paperclip" size={15} />Adjunto<input type="file" multiple hidden onChange={e => subir(e, 'adjunto')} /></label>
+        </div>
+      </div>
+      {items === null ? <Loading rows={1} header={false} /> :
+        fotos.length === 0 && adj.length === 0 ? <div className="muted" style={{ fontSize: 13 }}>Sin archivos. Subí fotos, videos o adjuntos.</div> : <>
+          {fotos.length > 0 && <div className="foto-grid" style={{ marginBottom: adj.length ? 12 : 0 }}>
+            {fotos.map(f => (
+              <div key={f.id} className="foto-card" style={{ position: 'relative' }}>
+                <a href={api.base + f.path} target="_blank" rel="noreferrer"><img src={api.base + f.path} alt="" /></a>
+                <input className="foto-cap" defaultValue={f.comentario || ''} placeholder="Comentario…" onBlur={e => cap(f.id, e.target.value)} onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }} />
+                <button className="btn danger icon" data-tip="Eliminar" aria-label="Eliminar" style={{ position: 'absolute', top: 4, right: 4, padding: 4, borderRadius: '50%' }} onClick={() => del(f)}><Icon name="x" size={12} /></button>
+              </div>
+            ))}
+          </div>}
+          {adj.map(a => (
+            <div key={a.id} className="row between" style={{ padding: '8px 0', borderTop: '1px solid var(--border)' }}>
+              <a className="row" style={{ gap: 8, fontSize: 14, minWidth: 0 }} href={api.base + a.path} target="_blank" rel="noreferrer">
+                <Icon name={/^video\//i.test(a.mimetype || '') ? 'camera' : 'file'} size={15} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.filename}{a.comentario ? ' — ' + a.comentario : ''}</span>
+              </a>
+              <button className="btn ghost icon" data-tip="Eliminar" aria-label="Eliminar" onClick={() => del(a)}><Icon name="trash" size={16} /></button>
+            </div>
+          ))}
+        </>}
     </div>
   );
 }

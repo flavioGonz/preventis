@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import QRCode from 'qrcode';
 import { q, pool } from './db.js';
 import { buildInformePDF } from './pdf.js';
-import { importPruebasExcel, exportPruebasExcel } from './excel.js';
+import { importPruebasExcel, exportPruebasExcel, exportInventarioExcel } from './excel.js';
 import { buildClientesTemplate, previewClientesExcel, commitClientesExcel } from './clientes_excel.js';
 import { buildEquiposTemplate, previewEquiposExcel, commitEquiposExcel } from './equipos_excel.js';
 import { mountAuth, ensureAuthSchema } from './auth.js';
@@ -270,6 +270,11 @@ app.post('/api/clientes/:id/visitas', wrap(async (req, res) => {
   await setVisitaTecnicos(r.rows[0].id, b.tecnico_ids !== undefined ? b.tecnico_ids : (b.tecnico_id ? [b.tecnico_id] : []));
   // Jornadas (visitas de varios dias). Si no se envian dias, se crea una jornada del dia de la visita.
   const vid = r.rows[0].id;
+  // Si la visita nace de un ticket, hereda sus fotos/videos/adjuntos.
+  if (b.ticket_id) {
+    await q(`INSERT INTO visita_archivos (visita_id,tipo,filename,path,mimetype,comentario)
+             SELECT $1,tipo,filename,path,mimetype,comentario FROM ticket_archivos WHERE ticket_id=$2`, [vid, b.ticket_id]).catch(() => {});
+  }
   let dias = Array.isArray(b.dias) ? b.dias.filter(Boolean).map(d => String(d).slice(0, 10)) : [];
   if (!dias.length) {
     const f0 = (b.fecha ? String(b.fecha).slice(0, 10) : null) || (r.rows[0].fecha ? new Date(r.rows[0].fecha).toISOString().slice(0, 10) : null);
@@ -443,6 +448,13 @@ app.post('/api/pruebas/:id/fotos', upload.array('files', 10), wrap(async (req, r
 }));
 
 // ============== Carga masiva / exportación Excel ==============
+// Exportar inventario de equipos (con historial de eventos) a Excel. Respeta los filtros de Inventario.
+app.get('/api/inventario/export.xlsx', wrap(async (req, res) => {
+  const buf = await exportInventarioExcel(req.query || {});
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', 'attachment; filename="inventario_equipos.xlsx"');
+  res.send(buf);
+}));
 // --- Importación masiva de CLIENTES (plantilla + previsualización + confirmación) ---
 // Plantilla Excel descargable (con listas desplegables y hoja de instrucciones).
 app.get('/api/clientes/import/template.xlsx', wrap(async (req, res) => {

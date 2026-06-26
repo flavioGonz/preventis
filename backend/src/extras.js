@@ -172,6 +172,7 @@ export function mountExtras(app, q) {
     .then(() => q(`
       CREATE TABLE IF NOT EXISTS tickets (id serial PRIMARY KEY, titulo text, cliente_id int REFERENCES clientes(id) ON DELETE SET NULL, prioridad text DEFAULT 'media', estado text DEFAULT 'abierto', asignado text, descripcion text, created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now());
       CREATE TABLE IF NOT EXISTS ticket_comentarios (id serial PRIMARY KEY, ticket_id int REFERENCES tickets(id) ON DELETE CASCADE, autor text, texto text, created_at timestamptz DEFAULT now());
+      CREATE TABLE IF NOT EXISTS ticket_archivos (id serial PRIMARY KEY, ticket_id int REFERENCES tickets(id) ON DELETE CASCADE, tipo text DEFAULT 'adjunto', filename text, path text, mimetype text, comentario text, created_at timestamptz DEFAULT now());
       ALTER TABLE tickets ADD COLUMN IF NOT EXISTS solicitante text;
       ALTER TABLE tickets ADD COLUMN IF NOT EXISTS fecha_max_resolucion date;
       ALTER TABLE tickets ADD COLUMN IF NOT EXISTS facturable boolean;
@@ -1273,6 +1274,26 @@ export function mountExtras(app, q) {
       [req.params.id, req.user?.nombre || req.user?.username || null, (req.body || {}).texto || '', JSON.stringify(adj)]);
     await q('UPDATE tickets SET updated_at=now() WHERE id=$1', [req.params.id]);
     res.status(201).json(r.rows[0]);
+  }));
+  // ---- Archivos de ticket (fotos / videos / adjuntos) — mismo modelo que visita_archivos ----
+  app.get('/api/tickets/:id/archivos', wrap(async (req, res) => {
+    res.json((await q('SELECT * FROM ticket_archivos WHERE ticket_id=$1 ORDER BY id DESC', [req.params.id])).rows);
+  }));
+  app.post('/api/tickets/:id/archivos', authMiddleware, upX.array('files', 20), wrap(async (req, res) => {
+    const tipo = (req.body || {}).tipo || 'adjunto'; const out = [];
+    for (const f of req.files || []) {
+      const r = await q('INSERT INTO ticket_archivos (ticket_id,tipo,filename,path,mimetype) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+        [req.params.id, tipo, f.originalname, '/uploads/' + path.basename(f.path), f.mimetype]);
+      out.push(r.rows[0]);
+    }
+    res.status(201).json(out);
+  }));
+  app.delete('/api/ticket_archivos/:id', authMiddleware, wrap(async (req, res) => {
+    await q('DELETE FROM ticket_archivos WHERE id=$1', [req.params.id]); res.json({ ok: true });
+  }));
+  app.put('/api/ticket_archivos/:id', authMiddleware, wrap(async (req, res) => {
+    const r = await q('UPDATE ticket_archivos SET comentario=$1 WHERE id=$2 RETURNING *', [(req.body?.comentario ?? '').toString().slice(0, 500) || null, req.params.id]);
+    res.json(r.rows[0] || {});
   }));
 
 

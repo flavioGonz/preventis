@@ -93,9 +93,19 @@ export default function Tickets() {
 
   useEffect(() => { if (!ctx) return; const close = () => { setCtx(null); setSub(null); }; window.addEventListener('click', close); window.addEventListener('scroll', close, true); return () => { window.removeEventListener('click', close); window.removeEventListener('scroll', close, true); }; }, [ctx]);
   const cambiarCampo = async (t, campo, valor) => { try { await api.put('/api/tickets/' + t.id, { ...t, [campo]: valor }); toast.ok('Ticket actualizado'); setCtx(null); setSub(null); load(); } catch (e) { toast.err(e.message); } };
-  const save = async (f) => {
-    try { if (f.id) await api.put('/api/tickets/' + f.id, f); else await api.post('/api/tickets', f); setModal(null); toast.ok('Ticket guardado'); load(); }
-    catch (e) { toast.err(e.message); }
+  const save = async (f, pend = []) => {
+    try {
+      let id = f.id;
+      if (f.id) await api.put('/api/tickets/' + f.id, f);
+      else { const r = await api.post('/api/tickets', f); id = r.id; }
+      if (id && pend.length) {
+        for (const tipo of ['foto', 'adjunto']) {
+          const fs = pend.filter(p => p.tipo === tipo).map(p => p.file);
+          if (fs.length) { const fd = new FormData(); fs.forEach(file => fd.append('files', file)); fd.append('tipo', tipo); await api.upload('/api/tickets/' + id + '/archivos', fd).catch(() => {}); }
+        }
+      }
+      setModal(null); toast.ok('Ticket guardado'); load();
+    } catch (e) { toast.err(e.message); }
   };
   const del = async (t) => { try { await api.del('/api/tickets/' + t.id); toast.ok('Ticket TK-' + t.id + ' eliminado'); setABorrar(null); load(); } catch (e) { toast.err(e.message); } };
   // Abre el modal "Agendar visita" prellenado con el ticket, para poder elegir 1 o varios días.
@@ -271,10 +281,12 @@ export function TicketFacturacion({ f, set, variant }) {
 
 export function TicketModal({ ticket, clientes, usuarios = [], onClose, onSave }) {
   const [f, setF] = useState(ticket);
+  const [pend, setPend] = useState([]);
   const set = (k, v) => setF({ ...f, [k]: v });
+  const addFiles = (e, tipo) => { const fs = [...e.target.files].map(file => ({ file, tipo })); setPend(p => [...p, ...fs]); e.target.value = ''; };
   return (
     <Modal title={f.id ? 'Ticket TK-' + f.id : 'Nuevo ticket'} subtitle="Incidencia o solicitud" onClose={onClose}
-      footer={<><button className="btn ghost" onClick={onClose}>Cancelar</button><button className="btn" onClick={() => onSave(f)} disabled={!f.titulo}><Icon name="check" size={16} />Guardar</button></>}>
+      footer={<><button className="btn ghost" onClick={onClose}>Cancelar</button><button className="btn" onClick={() => onSave(f, pend)} disabled={!f.titulo}><Icon name="check" size={16} />Guardar</button></>}>
       <div className="tk-form">
         <div className="tk-col">
           <Field label={<span className="flabel"><Icon name="ticket" size={13} />Titulo</span>}><input value={f.titulo || ''} onChange={e => set('titulo', e.target.value)} /></Field>
@@ -296,6 +308,18 @@ export function TicketModal({ ticket, clientes, usuarios = [], onClose, onSave }
             </Field>
           </div>
           <Field label={<span className="flabel"><Icon name="file" size={13} />Descripcion</span>}><textarea rows={5} value={f.descripcion || ''} onChange={e => set('descripcion', e.target.value)} /></Field>
+          <Field label={<span className="flabel"><Icon name="camera" size={13} />Fotos, videos y adjuntos</span>}>
+            <div className="row wrap" style={{ gap: 8 }}>
+              <label className="btn sec sm" style={{ cursor: 'pointer' }}><Icon name="camera" size={15} />Foto<input type="file" accept="image/*" multiple hidden onChange={e => addFiles(e, 'foto')} /></label>
+              <label className="btn sec sm" style={{ cursor: 'pointer' }}><Icon name="paperclip" size={15} />Adjunto<input type="file" multiple hidden onChange={e => addFiles(e, 'adjunto')} /></label>
+            </div>
+            {pend.length > 0 && <div className="stack" style={{ gap: 4, marginTop: 6 }}>
+              {pend.map((p, i) => <div key={i} className="row between" style={{ fontSize: 13 }}>
+                <span className="row" style={{ gap: 6, minWidth: 0 }}><Icon name={p.tipo === 'foto' ? 'camera' : 'file'} size={13} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.file.name}</span></span>
+                <button type="button" className="btn ghost icon sm" aria-label="Quitar" onClick={() => setPend(arr => arr.filter((_, j) => j !== i))}><Icon name="x" size={13} /></button>
+              </div>)}
+            </div>}
+          </Field>
         </div>
         <div className="tk-col">
           <TicketFacturacion f={f} set={set} variant="toggle" />
