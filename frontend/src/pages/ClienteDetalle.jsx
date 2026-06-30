@@ -292,7 +292,24 @@ function Equipos({ clienteId, user }) {
   const [estandar, setEstandar] = useState([]);
   const [modal, setModal] = useState(null);
   const [importEq, setImportEq] = useState(false);
+  const [sort, setSort] = useState({ key: 'tipo_elemento', dir: 1 });
   const nav = useNavigate();
+
+  const sortVal = (e, k) => {
+    if (k === 'ultima_fecha') return e.ultima_fecha ? new Date(e.ultima_fecha).getTime() : -1;
+    if (k === 'estado') return e.ultima_falla ? 2 : (e.ultima_fecha ? 1 : 0);
+    return (e[k] || '').toString().toLowerCase();
+  };
+  const sorted = equipos ? [...equipos].sort((a, b) => {
+    const x = sortVal(a, sort.key), y = sortVal(b, sort.key);
+    if (x < y) return -sort.dir; if (x > y) return sort.dir;
+    return (a.etiqueta || '').localeCompare(b.etiqueta || '', 'es');
+  }) : equipos;
+  const Th = ({ k, children, ...p }) => (
+    <th onClick={() => setSort(s => ({ key: k, dir: s.key === k ? -s.dir : 1 }))} style={{ cursor: 'pointer', whiteSpace: 'nowrap', userSelect: 'none' }} {...p}>
+      {children}{sort.key === k ? <span style={{ marginLeft: 3, opacity: .7 }}>{sort.dir > 0 ? '▲' : '▼'}</span> : null}
+    </th>
+  );
 
   const load = () => api.get('/api/clientes/' + clienteId + '/equipos').then(setEquipos);
   useEffect(() => {
@@ -353,11 +370,12 @@ function Equipos({ clienteId, user }) {
             <div className="tablewrap">
               <table className="table">
                 <thead><tr>
-                  <th>Etiqueta</th><th>Sistema</th><th>URL / acceso</th><th>Usuario</th><th>Password</th>
-                  <th>Ultima prueba</th><th>Estado</th><th></th>
+                  <Th k="etiqueta">Etiqueta</Th><Th k="tipo_elemento">Tipo</Th><Th k="sistema">Sistema</Th>
+                  <th>URL / acceso</th><th>Usuario</th><th>Password</th>
+                  <Th k="ultima_fecha">Ultima prueba</Th><Th k="estado">Estado</Th><th></th>
                 </tr></thead>
                 <tbody>
-                  {equipos.map(e => (
+                  {sorted.map(e => (
                     <tr key={e.id} style={{ cursor: 'pointer' }} onClick={() => nav('/equipos/' + e.id)}>
                       <td><div className="row" style={{ gap: 9 }}>
                         <label onClick={ev => ev.stopPropagation()} style={{ cursor: 'pointer' }} data-tip="Subir foto del equipo">
@@ -365,6 +383,7 @@ function Equipos({ clienteId, user }) {
                           <input type="file" accept="image/*" hidden onChange={async ev => { const f2 = ev.target.files?.[0]; if (!f2) return; const fd = new FormData(); fd.append('file', f2); try { await api.upload('/api/equipos/' + e.id + '/foto', fd); toast.ok('Foto subida'); load(); } catch (err) { toast.err(err.message); } ev.target.value = ''; }} />
                         </label>
                         <div style={{ minWidth: 0 }}><b style={{ color: 'var(--brand-700)' }}>{e.etiqueta || '-'}</b><div className="subtle mono" style={{ fontSize: 11 }}>{e.codigo_qr}</div></div></div></td>
+                      <td>{e.tipo_elemento || '-'}</td>
                       <td>{e.sistema || '-'}</td>
                       <td onClick={ev => ev.stopPropagation()}>{e.cred_url ? <span className="cred-cell mono"><a href={/^https?:\/\//.test(e.cred_url) ? e.cred_url : 'http://' + e.cred_url} target="_blank" rel="noreferrer" className="cred-url">{e.cred_url}</a><CopyBtn text={e.cred_url} tip="Copiar URL / acceso" /></span> : <span className="subtle">-</span>}</td>
                       <td onClick={ev => ev.stopPropagation()}>{e.cred_usuario ? <span className="cred-cell">{e.cred_usuario}<CopyBtn text={e.cred_usuario} tip="Copiar usuario" /></span> : <span className="subtle">-</span>}</td>
