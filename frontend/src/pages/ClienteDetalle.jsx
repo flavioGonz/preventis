@@ -293,6 +293,7 @@ function Equipos({ clienteId, user }) {
   const [modal, setModal] = useState(null);
   const [importEq, setImportEq] = useState(false);
   const [sort, setSort] = useState({ key: 'tipo_elemento', dir: 1 });
+  const [busq, setBusq] = useState('');
   const nav = useNavigate();
 
   const sortVal = (e, k) => {
@@ -305,6 +306,12 @@ function Equipos({ clienteId, user }) {
     if (x < y) return -sort.dir; if (x > y) return sort.dir;
     return (a.etiqueta || '').localeCompare(b.etiqueta || '', 'es');
   }) : equipos;
+  const filtered = (sorted || []).filter(e => {
+    const s = busq.trim().toLowerCase();
+    if (!s) return true;
+    return [e.etiqueta, e.tipo_elemento, e.sistema, e.modelo, e.codigo_qr, e.direccion, e.grupo, e.subgrupo, e.ip_host, e.cred_url]
+      .some(v => (v || '').toString().toLowerCase().includes(s));
+  });
   const Th = ({ k, children, ...p }) => (
     <th onClick={() => setSort(s => ({ key: k, dir: s.key === k ? -s.dir : 1 }))} style={{ cursor: 'pointer', whiteSpace: 'nowrap', userSelect: 'none' }} {...p}>
       {children}{sort.key === k ? <span style={{ marginLeft: 3, opacity: .7 }}>{sort.dir > 0 ? '▲' : '▼'}</span> : null}
@@ -348,7 +355,7 @@ function Equipos({ clienteId, user }) {
   return (
     <div>
       <div className="toolbar" style={{ justifyContent: 'space-between' }}>
-        <span className="muted">{equipos ? equipos.length : 0} equipos a controlar</span>
+        <span className="muted">{busq && equipos ? filtered.length + ' de ' + equipos.length : (equipos ? equipos.length : 0)} equipos a controlar</span>
         <div className="row wrap" style={{ gap: 8 }}>
           <Link className="btn sec sm" to={'/clientes/' + clienteId + '/etiquetas'}><Icon name="qr" size={15} />QRs</Link>
           <a className="btn sec sm" href={api.fileUrl('/api/clientes/' + clienteId + '/pruebas/export.xlsx')}><Icon name="download" size={15} />Exportar</a>
@@ -360,12 +367,22 @@ function Equipos({ clienteId, user }) {
           <button className="btn sm" onClick={() => setModal({ ...blankEq })}><Icon name="plus" size={16} />Equipo</button>
         </div>
       </div>
+      {equipos && equipos.length > 0 && (
+        <div className="row" style={{ gap: 8, alignItems: 'center', border: '1px solid var(--border)', borderRadius: 10, padding: '6px 10px', margin: '0 0 12px', maxWidth: 480, background: 'var(--surface)' }}>
+          <Icon name="search" size={16} color="var(--subtle)" />
+          <input value={busq} onChange={e => setBusq(e.target.value)} placeholder="Buscar por etiqueta, tipo, sistema, IP, modelo, serie, MAC…"
+            style={{ border: 'none', outline: 'none', background: 'transparent', flex: 1, fontSize: 14, padding: 0 }} />
+          {busq && <button className="btn ghost icon" aria-label="Limpiar" data-tip="Limpiar" onClick={() => setBusq('')}><Icon name="x" size={14} /></button>}
+        </div>
+      )}
       {equipos === null ? <Loading /> :
         equipos.length === 0 ?
           <Empty icon="box" title="Sin equipos cargados"
             action={<button className="btn" onClick={() => setModal({ ...blankEq })}><Icon name="plus" size={17} />Agregar equipo</button>}>
             Agrega equipos manualmente o importa pruebas desde Excel.
           </Empty> :
+          filtered.length === 0 ?
+            <Empty icon="search" title="Sin resultados">No hay equipos que coincidan con “{busq}”.</Empty> :
           <div className="card pad-sm">
             <div className="tablewrap">
               <table className="table">
@@ -375,7 +392,7 @@ function Equipos({ clienteId, user }) {
                   <Th k="ultima_fecha">Ultima prueba</Th><Th k="estado">Estado</Th><th></th>
                 </tr></thead>
                 <tbody>
-                  {sorted.map(e => (
+                  {filtered.map(e => (
                     <tr key={e.id} style={{ cursor: 'pointer' }} onClick={() => nav('/equipos/' + e.id)}>
                       <td><div className="row" style={{ gap: 9 }}>
                         <label onClick={ev => ev.stopPropagation()} style={{ cursor: 'pointer' }} data-tip="Subir foto del equipo">
