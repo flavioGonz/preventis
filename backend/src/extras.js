@@ -443,6 +443,38 @@ export function mountExtras(app, q) {
     await q("INSERT INTO app_config (clave,valor) VALUES ('chatbot',$1) ON CONFLICT (clave) DO UPDATE SET valor=$1", [JSON.stringify(req.body || {})]);
     res.json({ ok: true });
   }));
+  // Estado en vivo de la sesion de WhatsApp (consulta el gateway OpenWA).
+  app.get('/api/chatbot/session-status', authMiddleware, adminOnly, wrap(async (req, res) => {
+    const cfg = ((await q("SELECT valor FROM app_config WHERE clave='chatbot'")).rows[0] || {}).valor || {};
+    if (!cfg.url) return res.json({ ok: false, error: 'sin_config' });
+    const base = cfg.url.replace(/\/+$/, ''); const key = cfg.api_key || '';
+    try {
+      const rs = await fetch(base + '/api/sessions', { headers: { 'X-API-Key': key }, signal: AbortSignal.timeout(8000) });
+      const lj = await rs.json().catch(() => null);
+      const list = Array.isArray(lj) ? lj : (lj && (lj.data || lj.sessions)) || [];
+      const sid = cfg.session || 'default';
+      const f = list.find(x => x.id === sid || x.name === sid) || list[0];
+      if (!f) return res.json({ ok: false, error: 'sin_sesion' });
+      const status = (f.status || '').toLowerCase();
+      res.json({ ok: true, id: f.id, name: f.name, status, phone: f.phone, connected: ['ready', 'connected', 'working'].includes(status), lastActive: f.lastActive });
+    } catch (e) { res.json({ ok: false, error: 'sin_conexion' }); }
+  }));
+  // Reconectar (start) la sesion de WhatsApp sin re-escanear QR si sigue valida.
+  app.post('/api/chatbot/session-start', authMiddleware, adminOnly, wrap(async (req, res) => {
+    const cfg = ((await q("SELECT valor FROM app_config WHERE clave='chatbot'")).rows[0] || {}).valor || {};
+    if (!cfg.url) return res.status(400).json({ error: 'sin_config' });
+    const base = cfg.url.replace(/\/+$/, ''); const key = cfg.api_key || '';
+    let sid = cfg.session || 'default';
+    try {
+      if (!/^[0-9a-f]{8}-/i.test(sid)) {
+        const rs = await fetch(base + '/api/sessions', { headers: { 'X-API-Key': key } });
+        const lj = await rs.json().catch(() => null); const list = Array.isArray(lj) ? lj : (lj && (lj.data || lj.sessions)) || [];
+        const f = list.find(x => x.id === sid || x.name === sid); if (f) sid = f.id;
+      }
+      const r = await fetch(base + '/api/sessions/' + sid + '/start', { method: 'POST', headers: { 'X-API-Key': key } });
+      res.json({ ok: r.ok });
+    } catch (e) { res.status(502).json({ error: 'no_reconecto' }); }
+  }));
   app.post('/api/chatbot/test', authMiddleware, adminOnly, wrap(async (req, res) => {
     const cfg = ((await q("SELECT valor FROM app_config WHERE clave='chatbot'")).rows[0] || {}).valor || {};
     if (!cfg.url) return res.status(400).json({ error: 'Configura la URL de openwa primero' });

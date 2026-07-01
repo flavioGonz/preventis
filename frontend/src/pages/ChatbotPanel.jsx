@@ -25,7 +25,10 @@ function Conexion() {
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState(null);
-  useEffect(() => { api.get('/api/chatbot/config').then(setCfg).catch(() => setCfg({ url: '', api_key: '', session: '', numero_prueba: '', notificar: false })); }, []);
+  const [st, setSt] = useState(null);
+  const loadSt = () => api.get('/api/chatbot/session-status').then(setSt).catch(() => setSt({ ok: false, error: 'sin_conexion' }));
+  useEffect(() => { api.get('/api/chatbot/config').then(setCfg).catch(() => setCfg({ url: '', api_key: '', session: '', numero_prueba: '', notificar: false })); loadSt(); }, []);
+  const reconectar = async () => { try { await api.post('/api/chatbot/session-start', {}); toast.ok('Reconectando... espera unos segundos'); setSt(s => ({ ...(s || {}), status: 'starting' })); setTimeout(loadSt, 4500); } catch (e) { toast.err(e.message); } };
   const set = (k, v) => setCfg(p => ({ ...p, [k]: v }));
   const guardar = async () => { setSaving(true); try { await api.put('/api/chatbot/config', cfg); toast.ok('Configuración guardada'); } catch (e) { toast.err(e.message); } setSaving(false); };
   const probar = async () => {
@@ -35,7 +38,29 @@ function Conexion() {
     setTesting(false);
   };
   if (cfg === null) return <Loading rows={2} />;
+  const stInfo = !st ? { cls: '', txt: 'Consultando estado...', dot: 'var(--subtle)' }
+    : st.connected ? { cls: 'ok', txt: 'Conectado' + (st.phone ? ' · ' + st.phone : ''), dot: 'var(--ok)' }
+      : st.ok === false ? { cls: 'falla', txt: st.error === 'sin_config' ? 'Sin configurar' : st.error === 'sin_conexion' ? 'Gateway inaccesible' : 'Sin sesión', dot: 'var(--danger)' }
+        : { cls: 'falla', txt: 'Desconectado' + (st.status ? ' (' + st.status + ')' : ''), dot: 'var(--danger)' };
+  const puedeReconectar = st && ((st.ok !== false && !st.connected) || (st.ok === false && st.error === 'sin_conexion'));
   return (
+    <>
+    <div className="card" style={{ maxWidth: 640, marginBottom: 14 }}>
+      <div className="row between wrap" style={{ gap: 10 }}>
+        <div className="row" style={{ gap: 10 }}>
+          <Icon name="whatsapp" size={18} color="var(--ok)" />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>Estado de la sesión de WhatsApp</div>
+            <div className={'badge ' + stInfo.cls} style={{ marginTop: 4 }}><span className="dot" style={{ background: stInfo.dot }} />{stInfo.txt}</div>
+            {st && st.name && <span className="subtle" style={{ fontSize: 11.5, marginLeft: 8 }}>sesión {st.name}</span>}
+          </div>
+        </div>
+        <div className="row" style={{ gap: 8 }}>
+          <button className="btn ghost icon" onClick={loadSt} data-tip="Actualizar estado" aria-label="Actualizar"><Icon name="history" size={16} /></button>
+          {puedeReconectar && <button className="btn sec sm" onClick={reconectar}><Icon name="whatsapp" size={15} />Reconectar</button>}
+        </div>
+      </div>
+    </div>
     <div className="card" style={{ maxWidth: 640 }}>
       <div className="muted" style={{ fontSize: 13, marginBottom: 14 }}>Conecta Preventis con tu instancia de <b>openwa</b> (WhatsApp). Se usa para enviar notificaciones, códigos de 2FA y responder comandos.</div>
       <Field label={<span className="flabel"><Icon name="settings" size={13} />URL de openwa</span>}><input value={cfg.url || ''} placeholder="http://192.168.99.x:8002" onChange={e => set('url', e.target.value)} /></Field>
@@ -71,6 +96,7 @@ function Conexion() {
         <code className="mono" style={{ fontSize: 12, display: 'block', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '7px 10px' }}>{location.origin}/api/chatbot/webhook</code>
       </div>
     </div>
+    </>
   );
 }
 
