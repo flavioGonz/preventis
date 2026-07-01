@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 const SECRET = process.env.JWT_SECRET || 'preventis-dev-secret-change-me';
 const EXPIRES = '12h';
 
-const PUBLIC = ['/api/health', '/api/auth/login', '/api/auth/2fa/verify', '/api/auth/2fa/whatsapp', '/api/auth/2fa/email', '/api/chatbot/webhook', '/api/branding', '/api/manifest.webmanifest'];
+const PUBLIC = ['/api/health', '/api/auth/login', '/api/auth/2fa/verify', '/api/auth/2fa/whatsapp', '/api/auth/2fa/email', '/api/webauthn/login/options', '/api/webauthn/login/verify', '/api/chatbot/webhook', '/api/branding', '/api/manifest.webmanifest'];
 const phoneHint = (t) => { const s = String(t || '').replace(/[^0-9]/g, ''); return s ? '••••' + s.slice(-3) : ''; };
 const emailHint = (e) => { const s = String(e || '').trim(); const i = s.indexOf('@'); if (i < 1) return ''; return s.slice(0, Math.min(2, i)) + '•••' + s.slice(i); };
 // Rutas permitidas a un token de enrolamiento obligatorio (twofa_setup)
@@ -83,7 +83,9 @@ export function mountAuth(app, q) {
       // 2FA ya activo -> pedir segundo factor (no se emite la sesion todavia).
       if (u.twofa_enabled) {
         const pending = jwt.sign({ id: u.id, twofa_pending: true }, SECRET, { expiresIn: '5m' });
-        return res.json({ twofa_required: true, pending, methods: ['totp', ...(u.telefono ? ['whatsapp'] : []), ...(u.email ? ['email'] : [])], phone_hint: phoneHint(u.telefono), email_hint: emailHint(u.email) });
+        let hasPk = false;
+        try { hasPk = Number((await q('SELECT count(*) c FROM passkeys WHERE user_id=$1', [u.id])).rows[0].c) > 0; } catch {}
+        return res.json({ twofa_required: true, pending, methods: [...(hasPk ? ['passkey'] : []), 'totp', ...(u.telefono ? ['whatsapp'] : []), ...(u.email ? ['email'] : [])], phone_hint: phoneHint(u.telefono), email_hint: emailHint(u.email) });
       }
       // Admin sin 2FA -> enrolamiento obligatorio (token acotado a las rutas de configuracion).
       if (u.rol === 'admin') {

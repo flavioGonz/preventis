@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { Icon } from './icons.jsx';
 import { toast } from './toast.jsx';
+import { loginPasskey, passkeySupported } from '../webauthn.js';
 
 // fetch directo con un token explicito (para el enrolamiento obligatorio,
 // donde todavia no hay sesion guardada y se usa el setup_token).
@@ -44,6 +45,12 @@ export function TwoFAChallenge({ pending, methods = ['totp'], phoneHint, emailHi
     catch (e) { setErr(e.message); }
     setBusy(false);
   };
+  const usarPasskey = async () => {
+    setErr(''); setBusy(true);
+    try { const r = await loginPasskey({ pending }); onVerified(r.token, r.user); }
+    catch (e) { setErr(e.name === 'NotAllowedError' ? 'Passkey cancelada.' : (e.message || 'No se pudo usar la passkey')); }
+    setBusy(false);
+  };
 
   const titulo = tipo === 'backup' ? 'Código de respaldo' : tipo === 'whatsapp' ? 'Código por WhatsApp' : tipo === 'email' ? 'Código por email' : 'Código de la app';
   return (
@@ -67,6 +74,11 @@ export function TwoFAChallenge({ pending, methods = ['totp'], phoneHint, emailHi
       <button className="btn block" type="submit" disabled={busy || !code}>{busy ? 'Verificando…' : 'Verificar'}</button>
 
       <div className="stack" style={{ gap: 8, marginTop: 14 }}>
+        {methods.includes('passkey') && passkeySupported() && (
+          <button type="button" className="btn sec sm block" disabled={busy} onClick={usarPasskey}>
+            <Icon name="fingerprint" size={15} />Usar passkey (Face ID / huella)
+          </button>
+        )}
         {methods.includes('whatsapp') && tipo !== 'backup' && (
           <button type="button" className="btn sec sm block" disabled={busy} onClick={enviarWa}>
             <Icon name="whatsapp" size={15} />{waSent ? 'Reenviar código por WhatsApp' : 'Enviar código por WhatsApp'}

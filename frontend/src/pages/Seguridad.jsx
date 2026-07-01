@@ -4,6 +4,7 @@ import { PageHeader } from '../components/ui.jsx';
 import { Icon } from '../components/icons.jsx';
 import { toast } from '../components/toast.jsx';
 import { TwoFASetup } from '../components/TwoFA.jsx';
+import { registerPasskey, passkeySupported } from '../webauthn.js';
 
 export default function Seguridad({ user, embedded }) {
   const [st, setSt] = useState(null);
@@ -133,8 +134,58 @@ export default function Seguridad({ user, embedded }) {
             </div>
             <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>Usa el correo SMTP configurado en Configuración → Correo.</div>
           </div>
+
+          <PasskeysCard />
         </div>
       )}
+    </div>
+  );
+}
+
+// Gestión de passkeys (WebAuthn): registrar y eliminar llaves del dispositivo.
+function PasskeysCard() {
+  const [list, setList] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const load = () => api.get('/api/passkeys').then(setList).catch(() => setList([]));
+  useEffect(() => { load(); }, []);
+  const registrar = async () => {
+    setBusy(true);
+    try {
+      const name = (navigator.userAgentData?.platform || navigator.platform || 'Este dispositivo').toString().slice(0, 40);
+      await registerPasskey(name);
+      toast.ok('Passkey registrada');
+      load();
+    } catch (e) { toast.err(e.name === 'NotAllowedError' ? 'Registro cancelado.' : (e.message || 'No se pudo registrar la passkey')); }
+    setBusy(false);
+  };
+  const eliminar = async (p) => {
+    if (!confirm('¿Eliminar esta passkey? No podrás usarla para entrar.')) return;
+    try { await api.del('/api/passkeys/' + p.id); toast.ok('Passkey eliminada'); load(); } catch (e) { toast.err(e.message); }
+  };
+  if (!passkeySupported()) return null;
+  return (
+    <div className="card">
+      <div className="row" style={{ gap: 12, marginBottom: 12 }}>
+        <span className="ph-ic" style={{ width: 44, height: 44, background: '#ede9fe', color: '#7c3aed' }}><Icon name="fingerprint" size={22} /></span>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 16 }}>Passkeys (Face ID / huella)</div>
+          <div className="muted" style={{ fontSize: 13 }}>Entrá sin contraseña ni código usando el desbloqueo de tu dispositivo. También sirve como segundo factor.</div>
+        </div>
+      </div>
+      {list === null ? <div className="muted" style={{ fontSize: 13 }}>Cargando…</div> :
+        list.length === 0 ? <div className="muted" style={{ fontSize: 13, marginBottom: 10 }}>No tenés passkeys registradas.</div> :
+          <div className="stack" style={{ gap: 6, marginBottom: 10 }}>
+            {list.map(p => (
+              <div key={p.id} className="row between" style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 8 }}>
+                <div className="row" style={{ gap: 8, minWidth: 0 }}><Icon name="fingerprint" size={16} />
+                  <div style={{ minWidth: 0 }}><div style={{ fontSize: 14 }}>{p.device_name || 'Passkey'}</div>
+                    <div className="subtle" style={{ fontSize: 11.5 }}>Creada {new Date(p.created_at).toLocaleDateString('es-UY')}{p.last_used ? ' · usada ' + new Date(p.last_used).toLocaleDateString('es-UY') : ''}</div></div>
+                </div>
+                <button className="btn ghost icon" data-tip="Eliminar" aria-label="Eliminar" onClick={() => eliminar(p)}><Icon name="trash" size={16} /></button>
+              </div>
+            ))}
+          </div>}
+      <button className="btn sec" disabled={busy} onClick={registrar}><Icon name="plus" size={15} />{busy ? 'Registrando…' : 'Registrar una passkey en este dispositivo'}</button>
     </div>
   );
 }

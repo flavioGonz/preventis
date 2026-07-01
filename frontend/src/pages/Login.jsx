@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { setSession } from '../auth.js';
 import { Icon } from '../components/icons.jsx';
 import { TwoFAChallenge, TwoFASetup } from '../components/TwoFA.jsx';
+import { loginPasskey, passkeySupported } from '../webauthn.js';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -25,6 +26,13 @@ export default function Login() {
       else if (r.twofa_setup_required) { setSetupToken(r.setup_token); setStage('setup'); }
       else setSession(r.token, r.user);
     } catch (err) { setError(err.message); }
+    setBusy(false);
+  };
+
+  const entrarPasskey = async () => {
+    setError(''); setBusy(true);
+    try { const r = await loginPasskey(username ? { username } : {}); setSession(r.token, r.user); }
+    catch (err) { setError(err.name === 'NotAllowedError' ? 'Passkey cancelada o sin coincidencia.' : (err.message || 'No se pudo usar la passkey')); }
     setBusy(false);
   };
 
@@ -76,6 +84,13 @@ export default function Login() {
         <button className="btn block" type="submit" disabled={busy || !username}>
           {busy ? 'Entrando...' : 'Entrar'}
         </button>
+        {passkeySupported() && <>
+          <div style={{ textAlign: 'center', color: 'var(--subtle)', fontSize: 12, margin: '12px 0' }}>o</div>
+          <button className="btn sec block" type="button" disabled={busy} onClick={entrarPasskey}>
+            <Icon name="fingerprint" size={16} />Entrar con passkey
+          </button>
+          <div className="muted" style={{ fontSize: 11.5, textAlign: 'center', marginTop: 8 }}>Face ID, huella o Windows Hello</div>
+        </>}
       </form>
       <div className="login-foot">IES - Ingenieria en Seguridad</div>
     </div>

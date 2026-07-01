@@ -12,6 +12,7 @@ import { buildClientesTemplate, previewClientesExcel, commitClientesExcel } from
 import { buildEquiposTemplate, previewEquiposExcel, commitEquiposExcel } from './equipos_excel.js';
 import { mountAuth, ensureAuthSchema } from './auth.js';
 import { mount2FA, ensure2FASchema } from './twofa.js';
+import { mountWebauthn, ensureWebauthnSchema } from './webauthn.js';
 import { mountChatbot, ensureChatbotSchema } from './chatbot.js';
 import { mountExtras } from './extras.js';
 import { mountReportes } from './reportes.js';
@@ -31,9 +32,10 @@ app.use(cors());
 app.use(express.json({ limit: '25mb' }));
 app.use('/uploads', express.static(UPLOAD_DIR));
 
-ensureAuthSchema(q).then(() => ensure2FASchema(q)).then(() => ensureChatbotSchema(q)).catch(e => console.error('auth schema:', e));
+ensureAuthSchema(q).then(() => ensure2FASchema(q)).then(() => ensureChatbotSchema(q)).then(() => ensureWebauthnSchema(q)).catch(e => console.error('auth schema:', e));
 mountAuth(app, q);
 mount2FA(app, q);
+mountWebauthn(app, q);
 mountChatbot(app, q);
 mountExtras(app, q);
 mountReportes(app, q);
