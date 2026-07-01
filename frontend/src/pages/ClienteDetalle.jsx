@@ -354,8 +354,15 @@ function Equipos({ clienteId, user }) {
 
   return (
     <div>
-      <div className="toolbar" style={{ justifyContent: 'space-between' }}>
-        <span className="muted">{busq && equipos ? filtered.length + ' de ' + equipos.length : (equipos ? equipos.length : 0)} equipos a controlar</span>
+      <div className="toolbar" style={{ justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+        {equipos && equipos.length > 0 ? (
+          <div className="row" style={{ gap: 8, alignItems: 'center', border: '1px solid var(--border)', borderRadius: 10, padding: '6px 10px', flex: 1, minWidth: 220, maxWidth: 420, background: 'var(--surface)' }}>
+            <Icon name="search" size={16} color="var(--subtle)" />
+            <input value={busq} onChange={e => setBusq(e.target.value)} placeholder="Buscar por etiqueta, tipo, sistema, IP, modelo, serie, MAC…"
+              style={{ border: 'none', outline: 'none', background: 'transparent', flex: 1, fontSize: 14, padding: 0, minWidth: 0 }} />
+            {busq && <button className="btn ghost icon" aria-label="Limpiar" data-tip="Limpiar" onClick={() => setBusq('')}><Icon name="x" size={14} /></button>}
+          </div>
+        ) : <span />}
         <div className="row wrap" style={{ gap: 8 }}>
           <Link className="btn sec sm" to={'/clientes/' + clienteId + '/etiquetas'}><Icon name="qr" size={15} />QRs</Link>
           <a className="btn sec sm" href={api.fileUrl('/api/clientes/' + clienteId + '/pruebas/export.xlsx')}><Icon name="download" size={15} />Exportar</a>
@@ -367,14 +374,6 @@ function Equipos({ clienteId, user }) {
           <button className="btn sm" onClick={() => setModal({ ...blankEq })}><Icon name="plus" size={16} />Equipo</button>
         </div>
       </div>
-      {equipos && equipos.length > 0 && (
-        <div className="row" style={{ gap: 8, alignItems: 'center', border: '1px solid var(--border)', borderRadius: 10, padding: '6px 10px', margin: '0 0 12px', maxWidth: 480, background: 'var(--surface)' }}>
-          <Icon name="search" size={16} color="var(--subtle)" />
-          <input value={busq} onChange={e => setBusq(e.target.value)} placeholder="Buscar por etiqueta, tipo, sistema, IP, modelo, serie, MAC…"
-            style={{ border: 'none', outline: 'none', background: 'transparent', flex: 1, fontSize: 14, padding: 0 }} />
-          {busq && <button className="btn ghost icon" aria-label="Limpiar" data-tip="Limpiar" onClick={() => setBusq('')}><Icon name="x" size={14} /></button>}
-        </div>
-      )}
       {equipos === null ? <Loading /> :
         equipos.length === 0 ?
           <Empty icon="box" title="Sin equipos cargados"
@@ -418,6 +417,8 @@ function Equipos({ clienteId, user }) {
               </table>
             </div>
           </div>}
+
+      {equipos && equipos.length > 0 && <div className="muted" style={{ marginTop: 12, fontSize: 13 }}>{busq ? filtered.length + ' de ' + equipos.length : equipos.length} equipos a controlar</div>}
 
       {modal && <EquipoModal equipo={modal} sistemas={sistemas} tipos={tipos} estandar={estandar} onClose={() => setModal(null)} onSave={save} />}
       {importEq && <ImportEquipos clienteId={clienteId} onClose={() => setImportEq(false)} onDone={load} />}
