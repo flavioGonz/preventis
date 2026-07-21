@@ -185,7 +185,7 @@ export async function buildInformePDF(visitaId, uploadDir) {
   // Tabla de equipos (sobria) - siempre arranca en pagina nueva
   doc.addPage(); runningHeader();
   seccion('Equipos probados');
-  const cols = [{ t: 'Sistema', w: 90 }, { t: 'Etiqueta', w: 92, mono: true }, { t: 'Tipo', w: 86 }, { t: 'Estado', w: 80 }, { t: 'Comentarios', w: CW - 92 - 90 - 86 - 80 }];
+  const cols = [{ t: 'Etiqueta', w: 118, mono: true }, { t: 'Tipo', w: 104 }, { t: 'Estado', w: 86 }, { t: 'Comentarios', w: CW - 118 - 104 - 86 }];
   const fila = (vals, o = {}) => {
     // Altura dinamica: la fila se expande para que ningun dato quede cortado (hasta ~4 lineas)
     let h;
@@ -205,7 +205,7 @@ export async function buildInformePDF(visitaId, uploadDir) {
     if (o.falla) doc.rect(ML, y, 2.5, h).fill(RED);
     doc.fillColor(o.header ? '#fff' : INK);
     cols.forEach((c, i) => {
-      const isEstado = !o.header && i === 3 && o.falla;
+      const isEstado = !o.header && i === 2 && o.falla;
       doc.fillColor(o.header ? '#fff' : (isEstado ? RED : INK));
       doc.font(o.header ? 'Courier-Bold' : (c.mono ? 'Courier' : 'Helvetica')).fontSize(o.header ? 8 : 8.6);
       doc.text(String(vals[i] ?? ''), x + 7, y + (o.header ? 6.5 : 5), { width: c.w - 14, height: o.header ? h : h - 7, ellipsis: true, lineGap: 1 });
@@ -214,10 +214,30 @@ export async function buildInformePDF(visitaId, uploadDir) {
     doc.save().strokeColor(o.header ? NAVY : LINE).lineWidth(0.6).moveTo(ML, y + h).lineTo(W - ML, y + h).stroke().restore();
     doc.y = y + h;
   };
-  fila(cols.map(c => c.t), { header: true });
+  // Una tabla por sistema (Incendio, CCTV, Redes...): el cliente ve por separado que se reviso de cada uno.
+  const grupos = [];
+  for (const p of pruebas) {
+    const nom = p.sistema || 'Sin sistema asignado';
+    let g = grupos.find(x => x.nombre === nom);
+    if (!g) { g = { nombre: nom, items: [] }; grupos.push(g); }
+    g.items.push(p);
+  }
+  const tituloSistema = (nom) => {
+    // Si no entra el titulo + encabezado + una fila, arranca en pagina nueva (no deja titulos huerfanos).
+    if (doc.y + 76 > H - 64) { doc.addPage(); runningHeader(); }
+    doc.moveDown(0.7);
+    const y = doc.y;
+    doc.rect(ML, y, 3, 13).fill(BLUE);
+    doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(10.5).text(C(nom), ML + 9, y + 0.5, { characterSpacing: 0.6 });
+    doc.y = y + 18;
+  };
   if (!pruebas.length) { doc.font('Helvetica-Oblique').fontSize(9.5).fillColor(GRIS).text('Sin pruebas registradas en esta visita.', ML + 7, doc.y + 6); doc.y += 24; }
-  pruebas.forEach((p, i) => {
-    fila([p.sistema, p.etiqueta, p.tipo_elemento, p.estado, p.comentarios], { falla: p.es_falla, zebra: i % 2 === 1 });
+  grupos.forEach(g => {
+    tituloSistema(g.nombre);
+    fila(cols.map(c => c.t), { header: true });
+    g.items.forEach((p, i) => {
+      fila([p.etiqueta, p.tipo_elemento, p.estado, p.comentarios], { falla: p.es_falla, zebra: i % 2 === 1 });
+    });
   });
   // Totales (linea sobria)
   doc.moveDown(0.5);
