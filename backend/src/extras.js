@@ -1366,15 +1366,18 @@ export function mountExtras(app, q) {
       else { params.push(es); cond.push('u.ultimo_estado=$' + params.length); }
     }
     const where = 'WHERE ' + cond.join(' AND ');
+    const FROM = `FROM equipos e
+      LEFT JOIN clientes c ON c.id=e.cliente_id LEFT JOIN sistemas s ON s.id=e.sistema_id
+      LEFT JOIN tipos_elemento te ON te.id=e.tipo_elemento_id LEFT JOIN v_ultima_prueba u ON u.equipo_id=e.id`;
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+    const total = (await q(`SELECT count(*)::int c ${FROM} ${where}`, params)).rows[0].c;
     const r = await q(`
       SELECT e.id, e.etiqueta, e.codigo_qr, e.direccion, e.grupo, e.modelo, e.foto_path, e.cliente_id,
              c.nombre AS cliente, s.nombre AS sistema, te.nombre AS tipo_elemento,
              u.ultima_fecha, u.ultimo_estado, u.ultima_falla
-      FROM equipos e
-      LEFT JOIN clientes c ON c.id=e.cliente_id LEFT JOIN sistemas s ON s.id=e.sistema_id
-      LEFT JOIN tipos_elemento te ON te.id=e.tipo_elemento_id LEFT JOIN v_ultima_prueba u ON u.equipo_id=e.id
-      ${where} ORDER BY c.nombre, e.etiqueta LIMIT 2000`, params);
-    res.json(r.rows);
+      ${FROM} ${where} ORDER BY c.nombre, e.etiqueta LIMIT ${limit} OFFSET ${(page - 1) * limit}`, params);
+    res.json({ rows: r.rows, total, page, limit, pages: Math.max(1, Math.ceil(total / limit)) });
   }));
 
 

@@ -5,8 +5,12 @@ import { PageHeader, Loading, Empty, estadoBadge } from '../components/ui.jsx';
 import { Icon } from '../components/icons.jsx';
 import Drawer from '../components/Drawer.jsx';
 
+const LIMIT = 50;
+
 export default function Inventario() {
   const [items, setItems] = useState(null);
+  const [meta, setMeta] = useState({ total: 0, page: 1, pages: 1 });
+  const [page, setPage] = useState(1);
   const [clientes, setClientes] = useState([]);
   const [sistemas, setSistemas] = useState([]);
   const [estados, setEstados] = useState([]);
@@ -17,12 +21,32 @@ export default function Inventario() {
   const load = () => {
     const p = new URLSearchParams();
     Object.entries(f).forEach(([k, v]) => v && p.set(k, v));
-    api.get('/api/inventario?' + p).then(setItems);
+    p.set('page', page); p.set('limit', LIMIT);
+    api.get('/api/inventario?' + p).then(r => {
+      if (Array.isArray(r)) { setItems(r); setMeta({ total: r.length, page: 1, pages: 1 }); }
+      else { setItems(r.rows); setMeta({ total: r.total, page: r.page, pages: r.pages }); }
+    });
   };
   useEffect(() => { api.get('/api/clientes').then(setClientes); api.get('/api/sistemas').then(setSistemas); api.get('/api/estados_equipo').then(setEstados).catch(() => {}); }, []);
-  useEffect(load, [f]);
+  // Volver a la pagina 1 al cambiar filtros o busqueda.
+  useEffect(() => { setPage(1); }, [f.cliente_id, f.sistema_id, f.estado, f.search]);
+  // Cargar (con debounce, util al tipear en el buscador).
+  useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t); }, [f.cliente_id, f.sistema_id, f.estado, f.search, page]);
+
   const set = (k, v) => setF({ ...f, [k]: v });
   const filtCount = (f.cliente_id ? 1 : 0) + (f.sistema_id ? 1 : 0) + (f.estado ? 1 : 0);
+  const desde = meta.total === 0 ? 0 : (meta.page - 1) * LIMIT + 1;
+  const hasta = Math.min(meta.page * LIMIT, meta.total);
+
+  const Pager = () => meta.pages > 1 ? (
+    <div className="row between wrap" style={{ marginTop: 12, alignItems: 'center', gap: 10 }}>
+      <span className="muted" style={{ fontSize: 13 }}>{desde}–{hasta} de {meta.total} equipos · pág. {meta.page}/{meta.pages}</span>
+      <div className="row" style={{ gap: 6 }}>
+        <button className="btn sec sm" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}><Icon name="chevronLeft" size={15} />Anterior</button>
+        <button className="btn sec sm" disabled={page >= meta.pages} onClick={() => setPage(p => Math.min(meta.pages, p + 1))}>Siguiente<Icon name="chevronRight" size={15} /></button>
+      </div>
+    </div>
+  ) : null;
 
   return (
     <div>
@@ -60,16 +84,16 @@ export default function Inventario() {
         </div>
       </Drawer>
       {items === null ? <Loading /> :
-        items.length === 0 ? <Empty icon="box" title="Sin equipos">No hay equipos con esos filtros.</Empty> :
+        meta.total === 0 ? <Empty icon="box" title="Sin equipos">No hay equipos con esos filtros.</Empty> :
           <>
-            <div className="muted" style={{ margin: '2px 2px 10px', fontSize: 13 }}>{items.length} equipos</div>
+            <div className="muted" style={{ margin: '2px 2px 10px', fontSize: 13 }}>{meta.total} equipos</div>
             <div className="card pad-sm">
               <div className="tablewrap"><table className="table">
                 <thead><tr><th>Foto</th><th>QR</th><th>Etiqueta</th><th>Cliente</th><th>Sistema</th><th>Tipo</th><th>Estado</th></tr></thead>
                 <tbody>{items.map(e => (
                   <tr key={e.id} style={{ cursor: 'pointer' }} onClick={() => nav('/equipos/' + e.id)}>
-                    <td>{e.foto_path ? <img className="inv-thumb" src={api.base + e.foto_path} /> : <div className="inv-ph"><Icon name="box" size={18} /></div>}</td>
-                    <td><img className="inv-thumb" src={api.fileUrl('/api/equipos/' + e.id + '/qr.png')} /></td>
+                    <td>{e.foto_path ? <img className="inv-thumb" loading="lazy" src={api.base + e.foto_path} /> : <div className="inv-ph"><Icon name="box" size={18} /></div>}</td>
+                    <td><img className="inv-thumb" loading="lazy" src={api.fileUrl('/api/equipos/' + e.id + '/qr.png')} /></td>
                     <td><b>{e.etiqueta || '-'}</b><div className="subtle mono" style={{ fontSize: 11 }}>{e.codigo_qr}</div></td>
                     <td>{e.cliente}</td>
                     <td>{e.sistema || '-'}</td>
@@ -79,6 +103,7 @@ export default function Inventario() {
                 ))}</tbody>
               </table></div>
             </div>
+            <Pager />
           </>}
     </div>
   );
