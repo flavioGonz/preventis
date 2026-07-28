@@ -10,6 +10,20 @@ export const PRIO = { baja: ['Baja', '#2563eb'], media: ['Media', '#ea580c'], al
 export const EST = { abierto: ['warn', 'Abierto', 'alert'], en_proceso: ['info', 'En proceso', 'clock'], esperando_cliente: ['warn', 'Esperando cliente', 'phone'], resuelto: ['ok', 'Resuelto', 'checkCircle'], cerrado: ['gris', 'Cerrado', 'check'] };
 export const esVencido = (t) => !['resuelto', 'cerrado'].includes(t.estado) && t.fecha_max_resolucion && String(t.fecha_max_resolucion).slice(0, 10) < new Date().toISOString().slice(0, 10);
 const ESTADOS = [['', 'Todos'], ['abierto', 'Abiertos'], ['en_proceso', 'En proceso'], ['resuelto', 'Resueltos'], ['cerrado', 'Cerrados']];
+// Chips de visitas asociadas al ticket, por estado de la visita.
+const VIS_META = [['programada', 'info', 'calendar', 'Programada'], ['en_curso', 'warn', 'clock', 'En curso'], ['cerrada', 'ok', 'checkCircle', 'Cerrada'], ['cancelada', 'gris', 'x', 'Cancelada']];
+function VisitasCell({ t }) {
+  const m = t.visitas_por_estado || {};
+  const tot = t.visitas_total || 0;
+  return (
+    <span className="tkl-vis" style={{ width: 128, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+      {tot === 0 ? <span className="subtle" style={{ fontSize: 12 }}>—</span>
+        : VIS_META.filter(([k]) => m[k]).map(([k, cls, ic, lbl]) => (
+          <span key={k} className={'badge ' + cls} style={{ padding: '1px 6px', fontSize: 11, gap: 3 }} data-tip={m[k] + ' ' + lbl + (m[k] > 1 ? 's' : '')}><Icon name={ic} size={10} />{m[k]}</span>
+        ))}
+    </span>
+  );
+}
 
 export function PrioIcon({ p, size = 14 }) {
   const color = (PRIO[p] || PRIO.media)[1];
@@ -173,6 +187,7 @@ export default function Tickets() {
             <div className="tkl-headrow">
               <span style={{ width: 28 }} /><span className="tkl-key">Clave</span><span style={{ flex: 1 }}>Ticket</span>
               <span style={{ width: 22 }} data-tip="Prioridad">P</span><span style={{ width: 96 }}>Estado</span>
+              <span style={{ width: 128 }} data-tip="Visitas asociadas y su estado">Visitas</span>
               <span style={{ width: 26 }} /><span className="tkl-date">Creado</span><span className="tkl-open-h">Abierto</span><span className="tkl-upd">Actividad</span><span style={{ width: 30 }} />
             </div>
             {shown.map(t => {
@@ -187,6 +202,7 @@ export default function Tickets() {
                   </div>
                   <span className="tkl-prio" data-tip={'Prioridad ' + (PRIO[t.prioridad] || PRIO.media)[0]}><PrioIcon p={t.prioridad} /></span>
                   <span className={'badge ' + ec}><Icon name={eic} size={12} />{el}</span>
+                  <VisitasCell t={t} />
                   <span className="tkl-asig" data-tip={t.asignado || 'Sin asignar'}><TkAvatar nombre={t.asignado} src={tecAv[t.asignado]} /></span>
                   <span className="tkl-date mono" data-tip={'Creado ' + new Date(t.created_at).toLocaleString('es-UY')}>{new Date(t.created_at).toLocaleDateString('es-UY')}</span>
                   <span className={'tkl-open' + (['resuelto', 'cerrado'].includes(t.estado) ? ' fin' : '')} data-tip={['resuelto', 'cerrado'].includes(t.estado) ? 'Tiempo hasta resolverse' : 'Tiempo abierto'}>

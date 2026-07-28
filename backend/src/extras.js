@@ -1258,7 +1258,10 @@ export function mountExtras(app, q) {
     if (req.query.estado) { params.push(req.query.estado); cond.push('t.estado=$' + params.length); }
     if (req.query.cliente_id) { params.push(req.query.cliente_id); cond.push('t.cliente_id=$' + params.length); }
     const where = cond.length ? 'WHERE ' + cond.join(' AND ') : '';
-    res.json((await q(`SELECT t.*, c.nombre AS cliente FROM tickets t LEFT JOIN clientes c ON c.id=t.cliente_id ${where} ORDER BY (t.estado IN ('resuelto','cerrado')) ASC, t.updated_at DESC, t.id DESC`, params)).rows);
+    res.json((await q(`SELECT t.*, c.nombre AS cliente,
+      COALESCE((SELECT jsonb_object_agg(estado, c) FROM (SELECT estado, count(*) c FROM visitas WHERE ticket_id=t.id GROUP BY estado) s), '{}'::jsonb) AS visitas_por_estado,
+      (SELECT count(*)::int FROM visitas WHERE ticket_id=t.id) AS visitas_total
+      FROM tickets t LEFT JOIN clientes c ON c.id=t.cliente_id ${where} ORDER BY (t.estado IN ('resuelto','cerrado')) ASC, t.updated_at DESC, t.id DESC`, params)).rows);
   }));
   app.post('/api/tickets', authMiddleware, wrap(async (req, res) => {
     const b = req.body || {};
