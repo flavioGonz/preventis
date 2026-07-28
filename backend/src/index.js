@@ -106,7 +106,7 @@ app.get('/api/clientes', wrap(async (req, res) => {
   if (frecuencia) { params.push(frecuencia); cond.push(`frecuencia=$${params.length}`); }
   if (search) { params.push(`%${search}%`); cond.push(`(nombre ILIKE $${params.length} OR direccion ILIKE $${params.length})`); }
   const where = cond.length ? 'WHERE ' + cond.join(' AND ') : '';
-  const r = await q(`
+  const SQL = `
     SELECT c.*,
       (SELECT count(*) FROM equipos e WHERE e.cliente_id=c.id AND e.activo) AS equipos,
       (SELECT count(*) FROM v_ultima_prueba u JOIN equipos e ON e.id=u.equipo_id WHERE e.cliente_id=c.id AND e.activo AND u.ultima_falla)::int AS fallas,
@@ -118,8 +118,14 @@ app.get('/api/clientes', wrap(async (req, res) => {
       (SELECT k.id FROM contratos k WHERE k.cliente_id=c.id ORDER BY (k.estado='activo') DESC, k.fecha_fin DESC NULLS LAST LIMIT 1) AS contrato_id,
       (SELECT k.titulo FROM contratos k WHERE k.cliente_id=c.id ORDER BY (k.estado='activo') DESC, k.fecha_fin DESC NULLS LAST LIMIT 1) AS contrato_titulo,
       EXISTS(SELECT 1 FROM visitas v WHERE v.cliente_id=c.id AND v.estado='en_curso') AS en_curso
-    FROM clientes c ${where} ORDER BY nombre`, params);
-  res.json(r.rows);
+    FROM clientes c ${where} ORDER BY nombre`;
+  // Paginacion opt-in: si no llega ?page/?limit, se devuelve el array completo (lo usan los desplegables).
+  if (!req.query.page && !req.query.limit) { res.json((await q(SQL, params)).rows); return; }
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 30));
+  const total = (await q(`SELECT count(*)::int c FROM clientes c ${where}`, params)).rows[0].c;
+  const rows = (await q(SQL + ` LIMIT ${limit} OFFSET ${(page - 1) * limit}`, params)).rows;
+  res.json({ rows, total, page, limit, pages: Math.max(1, Math.ceil(total / limit)) });
 }));
 app.get('/api/clientes/:id', wrap(async (req, res) => {
   const r = await q('SELECT * FROM clientes WHERE id=$1', [req.params.id]);

@@ -14,6 +14,8 @@ const blank = { nombre: '', direccion: '', telefono: '', frecuencia: 'mensual' }
 
 export default function Clientes() {
   const [clientes, setClientes] = useState(null);
+  const [meta, setMeta] = useState({ total: 0, page: 1, pages: 1 });
+  const [page, setPage] = useState(1);
   const [filtro, setFiltro] = useState('');
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(null);
@@ -26,13 +28,19 @@ export default function Clientes() {
   const esAdmin = getUser()?.rol === 'admin';
   const nav = useNavigate();
 
+  const LIMIT = 30;
   const load = () => {
     const params = new URLSearchParams();
     if (filtro) params.set('frecuencia', filtro);
     if (search) params.set('search', search);
-    api.get('/api/clientes?' + params).then(setClientes).catch(e => toast.err(e.message));
+    params.set('page', page); params.set('limit', LIMIT);
+    api.get('/api/clientes?' + params).then(r => {
+      if (Array.isArray(r)) { setClientes(r); setMeta({ total: r.length, page: 1, pages: 1 }); }
+      else { setClientes(r.rows); setMeta({ total: r.total, page: r.page, pages: r.pages }); }
+    }).catch(e => toast.err(e.message));
   };
-  useEffect(load, [filtro, search]);
+  useEffect(() => { setPage(1); }, [filtro, search]);
+  useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t); }, [filtro, search, page]);
 
   const save = async (form) => {
     try {
@@ -84,7 +92,7 @@ export default function Clientes() {
             </div>
             {clientes.map(c => (
               <div key={c.id} className="tkl-row" onClick={() => nav('/clientes/' + c.id)}>
-                <span className="tkl-type">{c.avatar_path ? <img src={api.base + c.avatar_path} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }} /> : <Icon name="building" size={15} />}</span>
+                <span className="tkl-type">{c.avatar_path ? <img loading="lazy" src={api.base + c.avatar_path} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }} /> : <Icon name="building" size={15} />}</span>
                 <div className="tkl-main" style={{ display: 'block', minWidth: 0, flex: 1 }}>
                   <b className="tkl-tit" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nombre}</span>
@@ -111,7 +119,7 @@ export default function Clientes() {
             {clientes.map(c => (
               <div key={c.id} className="wa-row" onClick={() => nav('/clientes/' + c.id)}>
                 <label className={'wa-av cli-av' + (c.en_curso ? ' ring-ok' : '')} onClick={e => e.stopPropagation()} data-tip="Cambiar avatar del cliente">
-                  {c.avatar_path ? <img src={api.base + c.avatar_path} alt="" /> : <Icon name="building" size={24} />}
+                  {c.avatar_path ? <img loading="lazy" src={api.base + c.avatar_path} alt="" /> : <Icon name="building" size={24} />}
                   <input type="file" accept="image/*" hidden onChange={async ev => { const f = ev.target.files?.[0]; if (!f) return; const fd = new FormData(); fd.append('file', f); try { await api.upload('/api/clientes/' + c.id + '/avatar', fd); toast.ok('Avatar actualizado'); load(); } catch (err) { toast.err(err.message); } ev.target.value = ''; }} />
                   {c.en_curso && <span className="wa-dot" style={{ background: 'var(--ok)' }} />}
                 </label>
@@ -133,6 +141,14 @@ export default function Clientes() {
               </div>
             ))}
           </div></div>}
+
+      {meta.pages > 1 && <div className="row between wrap" style={{ marginTop: 12, alignItems: 'center', gap: 10 }}>
+        <span className="muted" style={{ fontSize: 13 }}>{meta.total} clientes · pág. {meta.page}/{meta.pages}</span>
+        <div className="row" style={{ gap: 6 }}>
+          <button className="btn sec sm" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}><Icon name="chevronLeft" size={15} />Anterior</button>
+          <button className="btn sec sm" disabled={page >= meta.pages} onClick={() => setPage(p => Math.min(meta.pages, p + 1))}>Siguiente<Icon name="chevronRight" size={15} /></button>
+        </div>
+      </div>}
 
       <Drawer open={sheet} onClose={() => setSheet(false)} title="Filtros" side="bottom"
         footer={<><button className="btn ghost" onClick={() => setFiltro('')}>Limpiar</button><button className="btn" onClick={() => setSheet(false)}>Aplicar</button></>}>
