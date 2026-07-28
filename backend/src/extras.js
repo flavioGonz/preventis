@@ -1283,6 +1283,7 @@ export function mountExtras(app, q) {
       count(*) FILTER (WHERE estado='abierto')::int abierto,
       count(*) FILTER (WHERE estado='en_proceso')::int en_proceso,
       count(*) FILTER (WHERE estado='esperando_cliente')::int esperando_cliente,
+      count(*) FILTER (WHERE estado='esperando_ies')::int esperando_ies,
       count(*) FILTER (WHERE estado='resuelto')::int resuelto,
       count(*) FILTER (WHERE estado='cerrado')::int cerrado,
       count(*) FILTER (WHERE estado NOT IN ('resuelto','cerrado') AND fecha_max_resolucion IS NOT NULL AND fecha_max_resolucion::date < current_date)::int vencidos

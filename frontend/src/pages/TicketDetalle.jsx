@@ -7,7 +7,7 @@ import { toast } from '../components/toast.jsx';
 import { PRIO, EST, PrioIcon, TkAvatar, ConfirmModal, fmtDur, TicketFacturacion } from './Tickets.jsx';
 import { AgendarModal } from './Visitas.jsx';
 
-const FLUJO = [['abierto', 'Abierto', 'alert'], ['en_proceso', 'En proceso', 'clock'], ['esperando_cliente', 'Esperando cliente', 'phone'], ['resuelto', 'Resuelto', 'checkCircle'], ['cerrado', 'Cerrado', 'check']];
+const FLUJO = [['abierto', 'Abierto', 'alert'], ['en_proceso', 'En proceso', 'clock'], ['esperando_cliente', 'Esperando cliente', 'phone'], ['esperando_ies', 'Esperando IES', 'truck'], ['resuelto', 'Resuelto', 'checkCircle'], ['cerrado', 'Cerrado', 'check']];
 
 const fmtDT = (d) => d ? new Date(d).toLocaleString('es-UY', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
 const esImg = (a) => /^image\//.test(a.mime || '') || /\.(png|jpe?g|gif|webp)$/i.test(a.path || '');

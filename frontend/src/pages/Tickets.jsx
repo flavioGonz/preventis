@@ -7,7 +7,7 @@ import { toast } from '../components/toast.jsx';
 import { AgendarModal } from './Visitas.jsx';
 
 export const PRIO = { baja: ['Baja', '#2563eb'], media: ['Media', '#ea580c'], alta: ['Alta', '#dc2626'] };
-export const EST = { abierto: ['warn', 'Abierto', 'alert'], en_proceso: ['info', 'En proceso', 'clock'], esperando_cliente: ['warn', 'Esperando cliente', 'phone'], resuelto: ['ok', 'Resuelto', 'checkCircle'], cerrado: ['gris', 'Cerrado', 'check'] };
+export const EST = { abierto: ['warn', 'Abierto', 'alert'], en_proceso: ['info', 'En proceso', 'clock'], esperando_cliente: ['warn', 'Esperando cliente', 'phone'], esperando_ies: ['warn', 'Esperando IES', 'truck'], resuelto: ['ok', 'Resuelto', 'checkCircle'], cerrado: ['gris', 'Cerrado', 'check'] };
 export const esVencido = (t) => !['resuelto', 'cerrado'].includes(t.estado) && t.fecha_max_resolucion && String(t.fecha_max_resolucion).slice(0, 10) < new Date().toISOString().slice(0, 10);
 const ESTADOS = [['', 'Todos'], ['abierto', 'Abiertos'], ['en_proceso', 'En proceso'], ['resuelto', 'Resueltos'], ['cerrado', 'Cerrados']];
 // Chips de visitas asociadas al ticket, por estado de la visita.
@@ -166,7 +166,7 @@ export default function Tickets() {
         actions={<button className="btn sm" onClick={() => setModal({ titulo: '', cliente_id: '', prioridad: 'media', estado: 'abierto', asignado: '', descripcion: '' })}><Icon name="plus" size={16} />Nuevo ticket</button>} />
 
       {stats && <div className="tkl-stats">
-        {[['abierto', 'Abiertos'], ['en_proceso', 'En proceso'], ['esperando_cliente', 'Esperando cliente'], ['resuelto', 'Resueltos'], ['cerrado', 'Cerrados']].map(([e, l]) => {
+        {[['abierto', 'Abiertos'], ['en_proceso', 'En proceso'], ['esperando_cliente', 'Esperando cliente'], ['esperando_ies', 'Esperando IES'], ['resuelto', 'Resueltos'], ['cerrado', 'Cerrados']].map(([e, l]) => {
           const [tone, , ic] = EST[e];
           return (
             <div key={e} className={'tkl-stat ' + tone + (estado === e ? ' on' : '')} onClick={() => setEstado(estado === e ? '' : e)}>
@@ -340,7 +340,7 @@ export function TicketModal({ ticket, clientes, usuarios = [], onClose, onSave }
               <select value={f.prioridad} onChange={e => set('prioridad', e.target.value)}><option value="baja">Baja</option><option value="media">Media</option><option value="alta">Alta</option></select>
             </Field>
             <Field label={<span className="flabel"><Icon name="checkCircle" size={13} />Estado</span>}>
-              <select value={f.estado} onChange={e => set('estado', e.target.value)}><option value="abierto">Abierto</option><option value="en_proceso">En proceso</option><option value="esperando_cliente">Esperando cliente</option><option value="resuelto">Resuelto</option><option value="cerrado">Cerrado</option></select>
+              <select value={f.estado} onChange={e => set('estado', e.target.value)}><option value="abierto">Abierto</option><option value="en_proceso">En proceso</option><option value="esperando_cliente">Esperando cliente</option><option value="esperando_ies">Esperando IES</option><option value="resuelto">Resuelto</option><option value="cerrado">Cerrado</option></select>
             </Field>
           </div>
           <Field label={<span className="flabel"><Icon name="file" size={13} />Descripcion</span>}><textarea rows={5} value={f.descripcion || ''} onChange={e => set('descripcion', e.target.value)} /></Field>
