@@ -37,7 +37,7 @@ export function PrioIcon({ p, size = 14 }) {
 
 export function TkAvatar({ nombre, src, size = 26 }) {
   if (src) return <img className="tkl-av" style={{ width: size, height: size }} src={api.base + src} alt={nombre || ''} />;
-  if (!nombre) return <span className="tkl-av empty" style={{ width: size, height: size }}><Icon name="plus" size={size * 0.5} /></span>;
+  if (!nombre) return <span className="tkl-av ini" style={{ width: size, height: size, minWidth: size, flexShrink: 0, alignSelf: 'center', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: '#dcfce7', color: '#16a34a' }} data-tip="Sin asignar"><Icon name="plus" size={Math.round(size * 0.55)} /></span>;
   return <span className="tkl-av ini" style={{ width: size, height: size, fontSize: size * 0.42 }}>{nombre.trim().slice(0, 1).toUpperCase()}</span>;
 }
 
@@ -80,6 +80,9 @@ const tmRel = (d) => {
 export default function Tickets() {
   const nav = useNavigate();
   const [items, setItems] = useState(null);
+  const [meta, setMeta] = useState({ total: 0, page: 1, pages: 1 });
+  const [page, setPage] = useState(1);
+  const [stats, setStats] = useState(null);
   const [clientes, setClientes] = useState([]);
   const [tecnicos, setTecnicos] = useState([]);
   const [convNuevo, setConvNuevo] = useState(null);
@@ -93,7 +96,20 @@ export default function Tickets() {
   const [ctx, setCtx] = useState(null); // {x,y,t}
   const [sub, setSub] = useState(null); // 'asignar'|'estado'|'prioridad'
 
-  const load = () => api.get('/api/tickets').then(setItems);
+  const LIMIT = 40;
+  const load = () => {
+    const p = new URLSearchParams();
+    if (estado) p.set('estado', estado);
+    if (prio) p.set('prioridad', prio);
+    if (q) p.set('search', q);
+    p.set('page', page); p.set('limit', LIMIT);
+    api.get('/api/tickets?' + p).then(r => {
+      if (Array.isArray(r)) { setItems(r); setMeta({ total: r.length, page: 1, pages: 1 }); }
+      else { setItems(r.rows); setMeta({ total: r.total, page: r.page, pages: r.pages }); }
+    });
+  };
+  const loadStats = () => api.get('/api/tickets/stats').then(setStats).catch(() => {});
+  const reload = () => { load(); loadStats(); };
   useEffect(() => {
     api.get('/api/clientes').then(setClientes);
     api.get('/api/tecnicos').then(setTecnicos).catch(() => {});
@@ -102,11 +118,13 @@ export default function Tickets() {
       const m = {}; (us || []).forEach(u => { if (u.avatar_path) { m[u.nombre] = u.avatar_path; m[u.username] = u.avatar_path; } });
       setTecAv(m);
     }).catch(() => {});
+    loadStats();
   }, []);
-  useEffect(() => { load(); }, []);
+  useEffect(() => { setPage(1); }, [estado, prio, q]);
+  useEffect(() => { const tmr = setTimeout(load, 250); return () => clearTimeout(tmr); }, [estado, prio, q, page]);
 
   useEffect(() => { if (!ctx) return; const close = () => { setCtx(null); setSub(null); }; window.addEventListener('click', close); window.addEventListener('scroll', close, true); return () => { window.removeEventListener('click', close); window.removeEventListener('scroll', close, true); }; }, [ctx]);
-  const cambiarCampo = async (t, campo, valor) => { try { await api.put('/api/tickets/' + t.id, { ...t, [campo]: valor }); toast.ok('Ticket actualizado'); setCtx(null); setSub(null); load(); } catch (e) { toast.err(e.message); } };
+  const cambiarCampo = async (t, campo, valor) => { try { await api.put('/api/tickets/' + t.id, { ...t, [campo]: valor }); toast.ok('Ticket actualizado'); setCtx(null); setSub(null); reload(); } catch (e) { toast.err(e.message); } };
   const save = async (f, pend = []) => {
     try {
       let id = f.id;
@@ -118,10 +136,10 @@ export default function Tickets() {
           if (fs.length) { const fd = new FormData(); fs.forEach(file => fd.append('files', file)); fd.append('tipo', tipo); await api.upload('/api/tickets/' + id + '/archivos', fd).catch(() => {}); }
         }
       }
-      setModal(null); toast.ok('Ticket guardado'); load();
+      setModal(null); toast.ok('Ticket guardado'); reload();
     } catch (e) { toast.err(e.message); }
   };
-  const del = async (t) => { try { await api.del('/api/tickets/' + t.id); toast.ok('Ticket TK-' + t.id + ' eliminado'); setABorrar(null); load(); } catch (e) { toast.err(e.message); } };
+  const del = async (t) => { try { await api.del('/api/tickets/' + t.id); toast.ok('Ticket TK-' + t.id + ' eliminado'); setABorrar(null); reload(); } catch (e) { toast.err(e.message); } };
   // Abre el modal "Agendar visita" prellenado con el ticket, para poder elegir 1 o varios días.
   const convertir = (t) => {
     if (!t.cliente_id) { toast.err('El ticket no tiene cliente asociado'); return; }
@@ -140,32 +158,26 @@ export default function Tickets() {
     } catch (e) { toast.err(e.message); }
   };
 
-  const shown = (items || []).filter(t =>
-    (!estado || (estado === 'vencidos' ? esVencido(t) : t.estado === estado)) &&
-    (!prio || t.prioridad === prio) &&
-    (!q || ((t.titulo || '') + ' ' + (t.cliente || '') + ' ' + (t.asignado || '') + ' TK-' + t.id).toLowerCase().includes(q.toLowerCase()))
-  );
-  const cnt = (e) => (items || []).filter(t => t.estado === e).length;
-  const cntVenc = (items || []).filter(esVencido).length;
+  const shown = items || [];
 
   return (
     <div>
       <PageHeader icon="ticket" title="Tickets" desc="Incidencias y solicitudes de soporte"
         actions={<button className="btn sm" onClick={() => setModal({ titulo: '', cliente_id: '', prioridad: 'media', estado: 'abierto', asignado: '', descripcion: '' })}><Icon name="plus" size={16} />Nuevo ticket</button>} />
 
-      {items !== null && <div className="tkl-stats">
+      {stats && <div className="tkl-stats">
         {[['abierto', 'Abiertos'], ['en_proceso', 'En proceso'], ['esperando_cliente', 'Esperando cliente'], ['resuelto', 'Resueltos'], ['cerrado', 'Cerrados']].map(([e, l]) => {
           const [tone, , ic] = EST[e];
           return (
             <div key={e} className={'tkl-stat ' + tone + (estado === e ? ' on' : '')} onClick={() => setEstado(estado === e ? '' : e)}>
               <span className="ts-ic"><Icon name={ic} size={16} /></span>
-              <div><b>{cnt(e)}</b><small>{l}</small></div>
+              <div><b>{stats[e] || 0}</b><small>{l}</small></div>
             </div>
           );
         })}
         <div className={'tkl-stat falla' + (estado === 'vencidos' ? ' on' : '')} onClick={() => setEstado(estado === 'vencidos' ? '' : 'vencidos')}>
           <span className="ts-ic"><Icon name="alert" size={16} /></span>
-          <div><b>{cntVenc}</b><small>Vencidos</small></div>
+          <div><b>{stats.vencidos || 0}</b><small>Vencidos</small></div>
         </div>
       </div>}
 
@@ -217,6 +229,14 @@ export default function Tickets() {
               );
             })}
           </div>}
+
+      {meta.pages > 1 && <div className="row between wrap" style={{ marginTop: 12, alignItems: 'center', gap: 10 }}>
+        <span className="muted" style={{ fontSize: 13 }}>{meta.total} tickets · pág. {meta.page}/{meta.pages}</span>
+        <div className="row" style={{ gap: 6 }}>
+          <button className="btn sec sm" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}><Icon name="chevronLeft" size={15} />Anterior</button>
+          <button className="btn sec sm" disabled={page >= meta.pages} onClick={() => setPage(p => Math.min(meta.pages, p + 1))}>Siguiente<Icon name="chevronRight" size={15} /></button>
+        </div>
+      </div>}
 
       {ctx && <div className="tkl-ctx" style={{ left: Math.min(ctx.x, window.innerWidth - 250), top: Math.min(ctx.y, window.innerHeight - 320) }} onClick={e => e.stopPropagation()}>
         <div className="tkl-ctx-h">TK-{ctx.t.id}</div>

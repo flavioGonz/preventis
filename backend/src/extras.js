@@ -1255,13 +1255,39 @@ export function mountExtras(app, q) {
   // ---- Tickets / incidencias ----
   app.get('/api/tickets', wrap(async (req, res) => {
     const cond = [], params = [];
-    if (req.query.estado) { params.push(req.query.estado); cond.push('t.estado=$' + params.length); }
+    const est = req.query.estado;
+    if (est === 'vencidos') cond.push("t.estado NOT IN ('resuelto','cerrado') AND t.fecha_max_resolucion IS NOT NULL AND t.fecha_max_resolucion::date < current_date");
+    else if (est) { params.push(est); cond.push('t.estado=$' + params.length); }
+    if (req.query.prioridad) { params.push(req.query.prioridad); cond.push('t.prioridad=$' + params.length); }
     if (req.query.cliente_id) { params.push(req.query.cliente_id); cond.push('t.cliente_id=$' + params.length); }
+    if (req.query.search) { params.push('%' + req.query.search + '%'); const i = params.length; cond.push(`(t.titulo ILIKE $${i} OR c.nombre ILIKE $${i} OR t.asignado ILIKE $${i} OR ('TK-' || t.id) ILIKE $${i})`); }
     const where = cond.length ? 'WHERE ' + cond.join(' AND ') : '';
-    res.json((await q(`SELECT t.*, c.nombre AS cliente,
+    const cols = `t.*, c.nombre AS cliente,
       COALESCE((SELECT jsonb_object_agg(estado, c) FROM (SELECT estado, count(*) c FROM visitas WHERE ticket_id=t.id GROUP BY estado) s), '{}'::jsonb) AS visitas_por_estado,
-      (SELECT count(*)::int FROM visitas WHERE ticket_id=t.id) AS visitas_total
-      FROM tickets t LEFT JOIN clientes c ON c.id=t.cliente_id ${where} ORDER BY (t.estado IN ('resuelto','cerrado')) ASC, t.updated_at DESC, t.id DESC`, params)).rows);
+      (SELECT count(*)::int FROM visitas WHERE ticket_id=t.id) AS visitas_total`;
+    const FROM = 'FROM tickets t LEFT JOIN clientes c ON c.id=t.cliente_id';
+    const ORDER = "ORDER BY (t.estado IN ('resuelto','cerrado')) ASC, t.updated_at DESC, t.id DESC";
+    if (!req.query.page && !req.query.limit) {
+      res.json((await q(`SELECT ${cols} ${FROM} ${where} ${ORDER}`, params)).rows);
+      return;
+    }
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 40));
+    const total = (await q(`SELECT count(*)::int c ${FROM} ${where}`, params)).rows[0].c;
+    const rows = (await q(`SELECT ${cols} ${FROM} ${where} ${ORDER} LIMIT ${limit} OFFSET ${(page - 1) * limit}`, params)).rows;
+    res.json({ rows, total, page, limit, pages: Math.max(1, Math.ceil(total / limit)) });
+  }));
+  // Conteos globales por estado (para las tarjetas KPI, independientes de la paginacion).
+  app.get('/api/tickets/stats', wrap(async (req, res) => {
+    const r = await q(`SELECT
+      count(*) FILTER (WHERE estado='abierto')::int abierto,
+      count(*) FILTER (WHERE estado='en_proceso')::int en_proceso,
+      count(*) FILTER (WHERE estado='esperando_cliente')::int esperando_cliente,
+      count(*) FILTER (WHERE estado='resuelto')::int resuelto,
+      count(*) FILTER (WHERE estado='cerrado')::int cerrado,
+      count(*) FILTER (WHERE estado NOT IN ('resuelto','cerrado') AND fecha_max_resolucion IS NOT NULL AND fecha_max_resolucion::date < current_date)::int vencidos
+      FROM tickets`);
+    res.json(r.rows[0]);
   }));
   app.post('/api/tickets', authMiddleware, wrap(async (req, res) => {
     const b = req.body || {};
