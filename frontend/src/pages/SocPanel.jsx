@@ -3,8 +3,14 @@ import { api } from '../api.js';
 import { Icon } from '../components/icons.jsx';
 import { toast } from '../components/toast.jsx';
 
-// Bandera emoji desde código ISO-3166 alfa-2.
-const flag = (cc) => (cc && /^[A-Za-z]{2}$/.test(cc)) ? String.fromCodePoint(...[...cc.toUpperCase()].map(c => 127397 + c.charCodeAt(0))) : '🏴‍☠️';
+// Bandera real (imagen). Windows no renderiza los emoji de bandera, por eso usamos flagcdn con fallback al código.
+function Flag({ cc, size = 18 }) {
+  if (!cc || !/^[A-Za-z]{2}$/.test(cc)) return <span style={{ fontSize: Math.round(size * 0.7), fontWeight: 700, color: 'var(--subtle)' }}>🏴</span>;
+  const h = Math.round(size * 0.75);
+  return <img src={'https://flagcdn.com/48x36/' + cc.toLowerCase() + '.png'} width={size} height={h} alt={cc.toUpperCase()} loading="lazy"
+    style={{ borderRadius: 2, objectFit: 'cover', verticalAlign: 'middle', boxShadow: '0 0 0 1px rgba(0,0,0,.08)', flexShrink: 0 }}
+    onError={e => { e.currentTarget.onerror = null; e.currentTarget.outerHTML = '<span style="font-size:10px;font-weight:700;color:var(--subtle)">' + cc.toUpperCase() + '</span>'; }} />;
+}
 const PAISES = [
   ['UY', 'Uruguay'], ['AR', 'Argentina'], ['BR', 'Brasil'], ['CL', 'Chile'], ['PY', 'Paraguay'], ['BO', 'Bolivia'], ['PE', 'Perú'],
   ['CO', 'Colombia'], ['EC', 'Ecuador'], ['VE', 'Venezuela'], ['MX', 'México'], ['US', 'Estados Unidos'], ['CA', 'Canadá'],
@@ -69,7 +75,7 @@ function CountryPicker({ value = [], onToggle, placeholder, tone = 'var(--brand-
   return (
     <div>
       {value.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-        {value.map(cc => <span key={cc} className="soc-sub" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', fontSize: 12.5, color: tone }}>{flag(cc)} {paisNom(cc)}
+        {value.map(cc => <span key={cc} className="soc-sub" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', fontSize: 12.5, color: tone }}><Flag cc={cc} size={16} /> {paisNom(cc)}
           <button onClick={() => onToggle(cc)} aria-label="Quitar" style={{ border: 'none', background: 'transparent', color: 'inherit', cursor: 'pointer', padding: 0, opacity: .7, display: 'inline-flex' }}><Icon name="x" size={11} /></button></span>)}
       </div>}
       <div className="soc-sub" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px' }}>
@@ -78,7 +84,7 @@ function CountryPicker({ value = [], onToggle, placeholder, tone = 'var(--brand-
       {qy.trim() && <div className="soc-sub" style={{ maxHeight: 200, overflow: 'auto', marginTop: 6 }}>
         {res.length === 0 ? <div style={{ padding: 10, color: 'var(--subtle)', fontSize: 13 }}>Sin resultados</div> :
           res.map(([cc, nm]) => <div key={cc} onClick={() => { onToggle(cc); }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', cursor: 'pointer', fontSize: 14, background: value.includes(cc) ? 'var(--brand-soft)' : 'transparent' }}>
-            <span style={{ fontSize: 18 }}>{flag(cc)}</span>{nm}<span style={{ marginLeft: 'auto', color: 'var(--subtle)', fontSize: 11 }}>{cc}</span>{value.includes(cc) && <Icon name="check" size={14} color="var(--ok)" />}
+            <Flag cc={cc} size={20} />{nm}<span style={{ marginLeft: 'auto', color: 'var(--subtle)', fontSize: 11 }}>{cc}</span>{value.includes(cc) && <Icon name="check" size={14} color="var(--ok)" />}
           </div>)}
       </div>}
     </div>
@@ -110,7 +116,7 @@ export default function SocPanel() {
   const set = (k, v) => setCfg(c => ({ ...c, [k]: v }));
   const guardar = async (silent) => { setSaving(true); try { const r = await api.put('/api/seguridad/config', cfg); setCfg(r); if (!silent) toast.ok('Configuración guardada'); } catch (e) { toast.err(e.message); } setSaving(false); return true; };
   const togglePais = (key, cc) => setCfg(c => { const cur = c[key] || []; return { ...c, [key]: cur.includes(cc) ? cur.filter(x => x !== cc) : [...cur, cc] }; });
-  const banearPais = async (cc) => { const cur = cfg.paises_baneados || []; if (cur.includes(cc)) return; const nuevo = { ...cfg, paises_baneados: [...cur, cc] }; setCfg(nuevo); try { await api.put('/api/seguridad/config', nuevo); toast.ok(flag(cc) + ' ' + paisNom(cc) + ' bloqueado'); } catch (e) { toast.err(e.message); } };
+  const banearPais = async (cc) => { const cur = cfg.paises_baneados || []; if (cur.includes(cc)) return; const nuevo = { ...cfg, paises_baneados: [...cur, cc] }; setCfg(nuevo); try { await api.put('/api/seguridad/config', nuevo); toast.ok(paisNom(cc) + ' bloqueado'); } catch (e) { toast.err(e.message); } };
   const banIp = async (ip, min) => { try { await api.post('/api/seguridad/bans', { ip, motivo: 'Baneo desde SOC', min: min || 0 }); toast.ok('IP ' + ip + ' baneada'); loadBans(); loadStats(); } catch (e) { toast.err(e.message); } };
   const banManual = async () => { if (!manIp.trim()) return; await banIp(manIp.trim(), Number(manMin) || 0); setManIp(''); setManMotivo(''); setManMin(''); };
   const deslistar = async (ip) => { if (!confirm('¿Deslistar la IP ' + ip + '?')) return; try { await api.del('/api/seguridad/bans/' + encodeURIComponent(ip)); toast.ok('IP deslistada'); loadBans(); loadStats(); } catch (e) { toast.err(e.message); } };
@@ -177,7 +183,7 @@ export default function SocPanel() {
                   <span style={{ color: 'var(--subtle)', fontFamily: 'monospace', flexShrink: 0 }}>{new Date(ev.ts).toLocaleTimeString('es-UY', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
                   <span style={{ width: 9, height: 9, borderRadius: '50%', background: col, flexShrink: 0 }} />
                   <span style={{ color: col, minWidth: 130, fontWeight: 600, flexShrink: 0 }}>{lbl}</span>
-                  <span style={{ fontFamily: 'monospace', color: 'var(--text)', flexShrink: 0 }}>{ev.pais ? flag(ev.pais) + ' ' : ''}{ev.ip || '—'}</span>
+                  <span style={{ fontFamily: 'monospace', color: 'var(--text)', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5 }}>{ev.pais && <Flag cc={ev.pais} size={16} />}{ev.ip || '—'}</span>
                   <span style={{ color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.username ? '· ' + ev.username : ''}{ev.detalle ? ' · ' + ev.detalle : ''}</span>
                   <span style={{ marginLeft: 'auto', color: 'var(--subtle)', flexShrink: 0 }} data-tip={fdt(ev.ts)}>{rel(ev.ts)}</span>
                 </div>
@@ -196,7 +202,7 @@ export default function SocPanel() {
             <b style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}><Icon name="pin" size={16} />De dónde vienen los ataques <span style={{ color: 'var(--subtle)', fontWeight: 400, fontSize: 12 }}>(7 días)</span></b>
             {(stats?.paises || []).length === 0 ? <div style={{ color: 'var(--subtle)', fontSize: 13 }}>Sin datos aún.</div> :
               (stats.paises).map(p => <div key={p.pais} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                <span style={{ fontSize: 20, flexShrink: 0 }}>{flag(p.pais)}</span>
+                <Flag cc={p.pais} size={24} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 3 }}><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{paisNom(p.pais)}</span><b>{p.c}</b></div>
                   <div className="soc-bar"><i style={{ width: Math.round(p.c / maxAtk * 100) + '%' }} /></div>
@@ -210,7 +216,7 @@ export default function SocPanel() {
             <b style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}><Icon name="alert" size={16} />Los más insistentes <span style={{ color: 'var(--subtle)', fontWeight: 400, fontSize: 12 }}>(por golpes)</span></b>
             {(stats?.top_ips || []).length === 0 ? <div style={{ color: 'var(--subtle)', fontSize: 13 }}>Sin datos aún.</div> :
               (stats.top_ips).map(t => <div key={t.ip} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: '1px solid var(--border)' }}>
-                <span style={{ fontSize: 18 }}>{flag(t.pais)}</span>
+                <Flag cc={t.pais} size={20} />
                 <span style={{ fontFamily: 'monospace', fontSize: 13, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.ip}</span>
                 <span className="soc-sub" style={{ padding: '2px 9px', fontSize: 12.5, fontWeight: 700 }}>{t.c}</span>
                 <button className="soc-iconbtn" data-tip="Banear esta IP (permanente)" onClick={() => banIp(t.ip, 0)}><Icon name="ban" size={15} /></button>
@@ -231,7 +237,7 @@ export default function SocPanel() {
         </div>
         <button className="btn block" onClick={() => guardar(false)} disabled={saving}><Icon name="check" size={16} />{saving ? 'Guardando…' : 'Guardar configuración'}</button>
         {miIp && <div style={{ marginTop: 14, fontSize: 12.5, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <Icon name="globe" size={13} />Tu IP: <b style={{ color: 'var(--text)', fontFamily: 'monospace' }}>{miIp.ip || '—'}</b>{miIp.pais && <span>{flag(miIp.pais)} {paisNom(miIp.pais)}</span>}{miIp.privada && <span style={{ color: 'var(--ok)' }}>(red interna)</span>}</div>}
+          <Icon name="globe" size={13} />Tu IP: <b style={{ color: 'var(--text)', fontFamily: 'monospace' }}>{miIp.ip || '—'}</b>{miIp.pais && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Flag cc={miIp.pais} size={16} /> {paisNom(miIp.pais)}</span>}{miIp.privada && <span style={{ color: 'var(--ok)' }}>(red interna)</span>}</div>}
       </div>}
 
       {/* ===== LISTAS (IPs baneadas) ===== */}
@@ -250,7 +256,7 @@ export default function SocPanel() {
               <tbody>{bansShown.map(b => (
                 <tr key={b.ip}>
                   <td className="mono">{b.ip}</td>
-                  <td>{b.pais ? <span>{flag(b.pais)} {paisNom(b.pais)}</span> : <span className="subtle">—</span>}</td>
+                  <td>{b.pais ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Flag cc={b.pais} size={16} /> {paisNom(b.pais)}</span> : <span className="subtle">—</span>}</td>
                   <td>{b.motivo || '—'}</td>
                   <td>{b.intentos ?? '—'}</td>
                   <td className="mono subtle">{fdt(b.created_at)}</td>
@@ -274,7 +280,7 @@ export default function SocPanel() {
           <div style={{ ...sub, marginBottom: 10 }}>Si está activada, <b>solo</b> se podrá iniciar sesión desde los países elegidos.</div>
           <label style={{ ...rowT, borderTop: 'none', paddingTop: 0 }}><div style={{ fontWeight: 600 }}>Restringir acceso por país</div><Toggle on={!!cfg.geo_enabled} onChange={v => set('geo_enabled', v)} tip="Activa la lista blanca de países" /></label>
           {cfg.geo_enabled && <div style={{ marginTop: 10 }}><CountryPicker value={cfg.paises || []} onToggle={cc => togglePais('paises', cc)} placeholder="Buscar país para permitir…" tone="var(--ok)" /></div>}
-          {miIp?.pais && cfg.geo_enabled && !(cfg.paises || []).includes(miIp.pais) && <div className="badge warn" style={{ marginTop: 10 }}><Icon name="alert" size={13} />Tu país ({flag(miIp.pais)} {paisNom(miIp.pais)}) no está en la lista. <button className="btn ghost sm" onClick={() => togglePais('paises', miIp.pais)}>Agregarlo</button></div>}
+          {miIp?.pais && cfg.geo_enabled && !(cfg.paises || []).includes(miIp.pais) && <div className="badge warn" style={{ marginTop: 10 }}><Icon name="alert" size={13} />Tu país (<Flag cc={miIp.pais} size={14} /> {paisNom(miIp.pais)}) no está en la lista. <button className="btn ghost sm" onClick={() => togglePais('paises', miIp.pais)}>Agregarlo</button></div>}
         </div>
         <div className="soc-card" style={{ padding: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}><Icon name="ban" size={16} color="var(--falla)" /><b>Países baneados (bloquear estos)</b></div>
