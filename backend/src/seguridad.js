@@ -27,9 +27,9 @@ function banActivo(ip) { const b = bans.get(ip); if (!b) return null; if (b.expi
 async function logEv(q, ev) { q('INSERT INTO seguridad_eventos (ip,pais,tipo,detalle,username) VALUES ($1,$2,$3,$4,$5)', [ev.ip || null, ev.pais || null, ev.tipo, ev.detalle || null, ev.username || null]).catch(() => {}); }
 async function banIP(q, ip, minutos, motivo, pais, intentos) {
   const expira = minutos > 0 ? new Date(Date.now() + minutos * 60000) : null;
+  bans.set(ip, { expira: expira ? expira.getTime() : null, motivo, pais }); // efecto inmediato (bloquea el siguiente request al toque)
   await q(`INSERT INTO seguridad_bans (ip,pais,motivo,intentos,expira,activo,created_at) VALUES ($1,$2,$3,$4,$5,true,now())
            ON CONFLICT (ip) DO UPDATE SET pais=$2,motivo=$3,intentos=$4,expira=$5,activo=true,created_at=now()`, [ip, pais, motivo, intentos || null, expira]);
-  bans.set(ip, { expira: expira ? expira.getTime() : null, motivo, pais });
   logEv(q, { ip, pais, tipo: 'ban', detalle: motivo + (minutos > 0 ? ' · ' + minutos + ' min' : ' · permanente') });
 }
 
