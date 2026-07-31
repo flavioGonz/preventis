@@ -1277,6 +1277,9 @@ export function mountExtras(app, q) {
     }
     if (req.query.con_visita === 'con') cond.push('EXISTS (SELECT 1 FROM visitas vv WHERE vv.ticket_id=t.id)');
     else if (req.query.con_visita === 'sin') cond.push('NOT EXISTS (SELECT 1 FROM visitas vv WHERE vv.ticket_id=t.id)');
+    // Visita "abierta" = programada o en curso (no cerrada/cancelada).
+    if (req.query.visita_abierta === 'con') cond.push("EXISTS (SELECT 1 FROM visitas vv WHERE vv.ticket_id=t.id AND vv.estado IN ('programada','en_curso'))");
+    else if (req.query.visita_abierta === 'sin') cond.push("NOT EXISTS (SELECT 1 FROM visitas vv WHERE vv.ticket_id=t.id AND vv.estado IN ('programada','en_curso'))");
     if (req.query.search) { params.push('%' + req.query.search + '%'); const i = params.length; cond.push(`(t.titulo ILIKE $${i} OR c.nombre ILIKE $${i} OR t.asignado ILIKE $${i} OR ('TK-' || t.id) ILIKE $${i})`); }
     const where = cond.length ? 'WHERE ' + cond.join(' AND ') : '';
     const cols = `t.*, c.nombre AS cliente,

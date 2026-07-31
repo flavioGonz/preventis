@@ -94,6 +94,7 @@ export default function Tickets() {
   const [clienteId, setClienteId] = useState([]);
   const [asignado, setAsignado] = useState([]);
   const [conVisita, setConVisita] = useState('');
+  const [visitaAbierta, setVisitaAbierta] = useState('');
   const [sheet, setSheet] = useState(false);
   const [q, setQ] = useState('');
   const toggle = (arr, setArr, v) => setArr(arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v]);
@@ -110,6 +111,7 @@ export default function Tickets() {
     clienteId.forEach(v => p.append('cliente_id', v));
     asignado.forEach(v => p.append('asignado', v));
     if (conVisita) p.set('con_visita', conVisita);
+    if (visitaAbierta) p.set('visita_abierta', visitaAbierta);
     if (q) p.set('search', q);
     p.set('page', page); p.set('limit', LIMIT);
     api.get('/api/tickets?' + p).then(r => {
@@ -129,21 +131,22 @@ export default function Tickets() {
     }).catch(() => {});
     loadStats();
   }, []);
-  useEffect(() => { setPage(1); }, [estado, prio, clienteId, asignado, conVisita, q]);
-  useEffect(() => { const tmr = setTimeout(load, 250); return () => clearTimeout(tmr); }, [estado, prio, clienteId, asignado, conVisita, q, page]);
+  useEffect(() => { setPage(1); }, [estado, prio, clienteId, asignado, conVisita, visitaAbierta, q]);
+  useEffect(() => { const tmr = setTimeout(load, 250); return () => clearTimeout(tmr); }, [estado, prio, clienteId, asignado, conVisita, visitaAbierta, q, page]);
 
   // Filtros activos (chips removibles) y contador para el boton "Filtros".
   const ESTADO_OPTS = [['abierto', 'Abierto'], ['en_proceso', 'En proceso'], ['esperando_cliente', 'Esperando cliente'], ['esperando_ies', 'Esperando IES'], ['resuelto', 'Resuelto'], ['cerrado', 'Cerrado'], ['vencidos', 'Vencidos']];
   const nomCliente = (id) => (clientes.find(c => String(c.id) === String(id)) || {}).nombre || ('Cliente ' + id);
   const estLabel = (e) => e === 'vencidos' ? 'Vencidos' : (EST[e] ? EST[e][1] : e);
-  const filtCount = estado.length + prio.length + clienteId.length + asignado.length + (conVisita ? 1 : 0);
-  const limpiar = () => { setEstado([]); setPrio([]); setClienteId([]); setAsignado([]); setConVisita(''); setQ(''); };
+  const filtCount = estado.length + prio.length + clienteId.length + asignado.length + (conVisita ? 1 : 0) + (visitaAbierta ? 1 : 0);
+  const limpiar = () => { setEstado([]); setPrio([]); setClienteId([]); setAsignado([]); setConVisita(''); setVisitaAbierta(''); setQ(''); };
   const activos = [
     ...estado.map(e => ({ key: 'e' + e, label: 'Estado: ' + estLabel(e), clear: () => setEstado(estado.filter(x => x !== e)) })),
     ...prio.map(p => ({ key: 'p' + p, label: 'Prioridad: ' + (PRIO[p] || [''])[0], clear: () => setPrio(prio.filter(x => x !== p)) })),
     ...clienteId.map(c => ({ key: 'c' + c, label: 'Cliente: ' + nomCliente(c), clear: () => setClienteId(clienteId.filter(x => x !== c)) })),
     ...asignado.map(a => ({ key: 'a' + a, label: 'Asignado: ' + (a === '__none__' ? 'Sin asignar' : a), clear: () => setAsignado(asignado.filter(x => x !== a)) })),
     ...(conVisita ? [{ key: 'vis', label: conVisita === 'con' ? 'Con visita' : 'Sin visita', clear: () => setConVisita('') }] : []),
+    ...(visitaAbierta ? [{ key: 'va', label: visitaAbierta === 'con' ? 'Con visita abierta' : 'Sin visita abierta', clear: () => setVisitaAbierta('') }] : []),
     ...(q ? [{ key: 'q', label: 'Búsqueda: “' + q + '”', clear: () => setQ('') }] : []),
   ];
 
@@ -251,6 +254,10 @@ export default function Tickets() {
           <div className="field"><label>Visitas asociadas</label>
             <div className="chips">
               {[['', 'Todas'], ['con', 'Con visita'], ['sin', 'Sin visita']].map(([v, l]) => <span key={v || 'all'} className={'chip' + (conVisita === v ? ' active' : '')} onClick={() => setConVisita(v)}>{l}</span>)}
+            </div></div>
+          <div className="field"><label>Visita abierta <span className="subtle" style={{ fontWeight: 400, fontSize: 12 }}>(programada o en curso)</span></label>
+            <div className="chips">
+              {[['', 'Todas'], ['con', 'Con visita abierta'], ['sin', 'Sin visita abierta']].map(([v, l]) => <span key={v || 'all'} className={'chip' + (visitaAbierta === v ? ' active' : '')} onClick={() => setVisitaAbierta(v)}>{l}</span>)}
             </div></div>
         </div>
       </Drawer>
