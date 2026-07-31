@@ -13,7 +13,7 @@ const RING = { programada: '', en_curso: 'ring-ok', cerrada: 'ring-info' };
 const DOTC = { programada: 'var(--subtle)', en_curso: 'var(--ok)', cerrada: 'var(--info)' };
 const TIMEAC = { programada: '', en_curso: ' ac-ok', cerrada: ' ac-info' };
 // Estado del ticket asociado a la visita: [color texto, fondo, etiqueta] para el pill TK-N.
-const TK_EST = { abierto: ['#b45309', '#fef3c7', 'Abierto'], en_proceso: ['#1d4ed8', '#dbeafe', 'En proceso'], esperando_cliente: ['#b45309', '#fef3c7', 'Esperando cliente'], esperando_ies: ['#7c3aed', '#ede9fe', 'Esperando IES'], resuelto: ['#15803d', '#dcfce7', 'Resuelto'], cerrado: ['#475569', '#e2e8f0', 'Cerrado'] };
+const TK_EST = { abierto: ['#475569', '#e2e8f0', 'Abierto'], en_proceso: ['#475569', '#e2e8f0', 'En proceso'], esperando_cliente: ['#475569', '#e2e8f0', 'Esperando cliente'], esperando_ies: ['#475569', '#e2e8f0', 'Esperando IES'], resuelto: ['#475569', '#e2e8f0', 'Resuelto'], cerrado: ['#15803d', '#dcfce7', 'Cerrado'] };
 function TicketPill({ v }) {
   if (!v.ticket_id) return null;
   const [col, bg, lbl] = TK_EST[v.ticket_estado] || TK_EST.abierto;
