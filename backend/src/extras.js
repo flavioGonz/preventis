@@ -1260,6 +1260,10 @@ export function mountExtras(app, q) {
     else if (est) { params.push(est); cond.push('t.estado=$' + params.length); }
     if (req.query.prioridad) { params.push(req.query.prioridad); cond.push('t.prioridad=$' + params.length); }
     if (req.query.cliente_id) { params.push(req.query.cliente_id); cond.push('t.cliente_id=$' + params.length); }
+    if (req.query.asignado === '__none__') cond.push("(t.asignado IS NULL OR t.asignado='')");
+    else if (req.query.asignado) { params.push(req.query.asignado); cond.push('t.asignado=$' + params.length); }
+    if (req.query.con_visita === 'con') cond.push('EXISTS (SELECT 1 FROM visitas vv WHERE vv.ticket_id=t.id)');
+    else if (req.query.con_visita === 'sin') cond.push('NOT EXISTS (SELECT 1 FROM visitas vv WHERE vv.ticket_id=t.id)');
     if (req.query.search) { params.push('%' + req.query.search + '%'); const i = params.length; cond.push(`(t.titulo ILIKE $${i} OR c.nombre ILIKE $${i} OR t.asignado ILIKE $${i} OR ('TK-' || t.id) ILIKE $${i})`); }
     const where = cond.length ? 'WHERE ' + cond.join(' AND ') : '';
     const cols = `t.*, c.nombre AS cliente,

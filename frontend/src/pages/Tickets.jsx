@@ -5,6 +5,7 @@ import { PageHeader, Loading, Empty, Modal, Field, ClienteSelect } from '../comp
 import { Icon } from '../components/icons.jsx';
 import { toast } from '../components/toast.jsx';
 import { AgendarModal } from './Visitas.jsx';
+import Drawer from '../components/Drawer.jsx';
 
 export const PRIO = { baja: ['Baja', '#2563eb'], media: ['Media', '#ea580c'], alta: ['Alta', '#dc2626'] };
 export const EST = { abierto: ['warn', 'Abierto', 'alert'], en_proceso: ['info', 'En proceso', 'clock'], esperando_cliente: ['warn', 'Esperando cliente', 'phone'], esperando_ies: ['warn', 'Esperando IES', 'truck'], resuelto: ['ok', 'Resuelto', 'checkCircle'], cerrado: ['gris', 'Cerrado', 'check'] };
@@ -90,6 +91,10 @@ export default function Tickets() {
   const [usuarios, setUsuarios] = useState([]);
   const [estado, setEstado] = useState('');
   const [prio, setPrio] = useState('');
+  const [clienteId, setClienteId] = useState('');
+  const [asignado, setAsignado] = useState('');
+  const [conVisita, setConVisita] = useState('');
+  const [sheet, setSheet] = useState(false);
   const [q, setQ] = useState('');
   const [modal, setModal] = useState(null);
   const [aBorrar, setABorrar] = useState(null);
@@ -101,6 +106,9 @@ export default function Tickets() {
     const p = new URLSearchParams();
     if (estado) p.set('estado', estado);
     if (prio) p.set('prioridad', prio);
+    if (clienteId) p.set('cliente_id', clienteId);
+    if (asignado) p.set('asignado', asignado);
+    if (conVisita) p.set('con_visita', conVisita);
     if (q) p.set('search', q);
     p.set('page', page); p.set('limit', LIMIT);
     api.get('/api/tickets?' + p).then(r => {
@@ -120,8 +128,22 @@ export default function Tickets() {
     }).catch(() => {});
     loadStats();
   }, []);
-  useEffect(() => { setPage(1); }, [estado, prio, q]);
-  useEffect(() => { const tmr = setTimeout(load, 250); return () => clearTimeout(tmr); }, [estado, prio, q, page]);
+  useEffect(() => { setPage(1); }, [estado, prio, clienteId, asignado, conVisita, q]);
+  useEffect(() => { const tmr = setTimeout(load, 250); return () => clearTimeout(tmr); }, [estado, prio, clienteId, asignado, conVisita, q, page]);
+
+  // Filtros activos (chips removibles) y contador para el boton "Filtros".
+  const nomCliente = (id) => (clientes.find(c => String(c.id) === String(id)) || {}).nombre || ('Cliente ' + id);
+  const estLabel = (e) => e === 'vencidos' ? 'Vencidos' : (EST[e] ? EST[e][1] : e);
+  const filtCount = [estado, prio, clienteId, asignado, conVisita].filter(Boolean).length;
+  const limpiar = () => { setEstado(''); setPrio(''); setClienteId(''); setAsignado(''); setConVisita(''); setQ(''); };
+  const activos = [
+    estado && { key: 'estado', label: 'Estado: ' + estLabel(estado), clear: () => setEstado('') },
+    prio && { key: 'prio', label: 'Prioridad: ' + (PRIO[prio] || [''])[0], clear: () => setPrio('') },
+    clienteId && { key: 'cli', label: 'Cliente: ' + nomCliente(clienteId), clear: () => setClienteId('') },
+    asignado && { key: 'asig', label: 'Asignado: ' + (asignado === '__none__' ? 'Sin asignar' : asignado), clear: () => setAsignado('') },
+    conVisita && { key: 'vis', label: conVisita === 'con' ? 'Con visita' : 'Sin visita', clear: () => setConVisita('') },
+    q && { key: 'q', label: 'Búsqueda: “' + q + '”', clear: () => setQ('') },
+  ].filter(Boolean);
 
   useEffect(() => { if (!ctx) return; const close = () => { setCtx(null); setSub(null); }; window.addEventListener('click', close); window.addEventListener('scroll', close, true); return () => { window.removeEventListener('click', close); window.removeEventListener('scroll', close, true); }; }, [ctx]);
   const cambiarCampo = async (t, campo, valor) => { try { await api.put('/api/tickets/' + t.id, { ...t, [campo]: valor }); toast.ok('Ticket actualizado'); setCtx(null); setSub(null); reload(); } catch (e) { toast.err(e.message); } };
@@ -181,17 +203,63 @@ export default function Tickets() {
         </div>
       </div>}
 
-      <div className="row wrap" style={{ gap: 10, marginBottom: 14 }}>
+      <div className="row wrap" style={{ gap: 10, marginBottom: activos.length ? 8 : 14 }}>
         <div className="wa-search" style={{ flex: 1, minWidth: 220, marginBottom: 0 }}>
           <Icon name="search" size={17} /><input placeholder="Buscar por clave, titulo, cliente o asignado..." value={q} onChange={e => setQ(e.target.value)} />
         </div>
-        <div className="chips">
-          <span className={'chip' + (!prio ? ' active' : '')} onClick={() => setPrio('')}>Prioridad</span>
-          {Object.entries(PRIO).map(([v, [l]]) => (
-            <span key={v} className={'chip' + (prio === v ? ' active' : '')} onClick={() => setPrio(prio === v ? '' : v)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><PrioIcon p={v} size={12} />{l}</span>
-          ))}
-        </div>
+        <button className={'btn-filter' + (filtCount ? ' on' : '')} onClick={() => setSheet(true)}>
+          <Icon name="filter" size={16} />Filtros{filtCount ? <span className="fc">{filtCount}</span> : null}
+        </button>
       </div>
+
+      {activos.length > 0 && <div className="row wrap" style={{ gap: 6, marginBottom: 14, alignItems: 'center' }}>
+        {activos.map(a => (
+          <span key={a.key} className="chip active" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            {a.label}
+            <button onClick={a.clear} aria-label="Quitar filtro" style={{ display: 'inline-flex', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, color: 'inherit', opacity: .7 }}><Icon name="x" size={12} /></button>
+          </span>
+        ))}
+        <button className="btn ghost sm" onClick={limpiar} style={{ height: 26 }}><Icon name="x" size={13} />Limpiar filtros</button>
+      </div>}
+
+      <Drawer open={sheet} onClose={() => setSheet(false)} title="Filtros de tickets" side="bottom"
+        footer={<><button className="btn ghost" onClick={limpiar}>Limpiar</button><button className="btn" onClick={() => setSheet(false)}>Aplicar</button></>}>
+        <div className="filter-sheet">
+          <div className="field"><label>Estado</label>
+            <select value={estado} onChange={e => setEstado(e.target.value)}>
+              <option value="">Todos</option>
+              <option value="abierto">Abierto</option>
+              <option value="en_proceso">En proceso</option>
+              <option value="esperando_cliente">Esperando cliente</option>
+              <option value="esperando_ies">Esperando IES</option>
+              <option value="resuelto">Resuelto</option>
+              <option value="cerrado">Cerrado</option>
+              <option value="vencidos">Vencidos</option>
+            </select></div>
+          <div className="field"><label>Prioridad</label>
+            <select value={prio} onChange={e => setPrio(e.target.value)}>
+              <option value="">Todas</option>
+              {Object.entries(PRIO).map(([v, [l]]) => <option key={v} value={v}>{l}</option>)}
+            </select></div>
+          <div className="field"><label>Cliente</label>
+            <select value={clienteId} onChange={e => setClienteId(e.target.value)}>
+              <option value="">Todos</option>
+              {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select></div>
+          <div className="field"><label>Asignado a</label>
+            <select value={asignado} onChange={e => setAsignado(e.target.value)}>
+              <option value="">Todos</option>
+              <option value="__none__">Sin asignar</option>
+              {usuarios.map(u => <option key={u.id} value={u.nombre || u.username}>{u.nombre || u.username}</option>)}
+            </select></div>
+          <div className="field"><label>Visitas asociadas</label>
+            <select value={conVisita} onChange={e => setConVisita(e.target.value)}>
+              <option value="">Todas</option>
+              <option value="con">Con visita</option>
+              <option value="sin">Sin visita</option>
+            </select></div>
+        </div>
+      </Drawer>
 
       {items === null ? <Loading /> :
         shown.length === 0 ? <Empty icon="ticket" title="Sin tickets">No hay tickets con esos filtros.</Empty> :
