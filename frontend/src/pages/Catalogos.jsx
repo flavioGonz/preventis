@@ -5,6 +5,7 @@ import { Icon } from '../components/icons.jsx';
 import { toast } from '../components/toast.jsx';
 import { applyBranding } from '../branding.js';
 import Seguridad from './Seguridad.jsx';
+import SocPanel from './SocPanel.jsx';
 import ChatbotPanel from './ChatbotPanel.jsx';
 
 const CFG_DESC = {
@@ -39,7 +40,7 @@ export default function Catalogos({ user }) {
     { label: 'Dispositivos', items: [['tipos_elemento', 'Tipos de elementos', 'list'], ['estados_equipo', 'Estado de equipos', 'alert'], ...adm([['equipos_estandar', 'Equipos estandar', 'camera']])] },
     { label: 'Mi cuenta', items: [['seguridad', 'Seguridad (2FA)', 'checkCircle']] },
     { label: 'Usuarios', items: adm([['usuarios', 'Usuarios', 'users'], ['online', 'En linea', 'pin'], ['roles', 'Roles', 'star'], ['permisos', 'Permisos', 'settings']]) },
-    { label: 'Sistema', items: adm([['branding', 'Branding', 'star'], ['chatbot', 'Chatbot', 'whatsapp'], ['correo', 'Correo', 'mail'], ['alertas', 'Alertas', 'bell'], ['auditoria', 'Auditoria', 'history'], ['respaldos', 'Respaldos', 'box'], ['actualizar', 'Actualizaciones', 'download']]) },
+    { label: 'Sistema', items: adm([['branding', 'Branding', 'star'], ['chatbot', 'Chatbot', 'whatsapp'], ['correo', 'Correo', 'mail'], ['alertas', 'Alertas', 'bell'], ['seguridad_soc', 'Seguridad SOC', 'shield'], ['auditoria', 'Auditoria', 'history'], ['respaldos', 'Respaldos', 'box'], ['actualizar', 'Actualizaciones', 'download']]) },
   ].filter(g => g.items.length);
   const onGrupo = (e, i) => { e.stopPropagation(); setOpenGrupo(o => (o === i ? null : i)); };
   const onItem = (e, k) => { e.stopPropagation(); setTab(k); setOpenGrupo(null); };
@@ -78,6 +79,7 @@ export default function Catalogos({ user }) {
           {tab === 'chatbot' && isAdmin && <ChatbotPanel />}
           {tab === 'correo' && isAdmin && <Correo />}
           {tab === 'alertas' && isAdmin && <Alertas />}
+          {tab === 'seguridad_soc' && isAdmin && <SocPanel />}
           {tab === 'auditoria' && isAdmin && <Auditoria />}
           {tab === 'respaldos' && isAdmin && <Respaldos />}
           {tab === 'actualizar' && isAdmin && <Actualizaciones />}
