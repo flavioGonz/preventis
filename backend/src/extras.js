@@ -1369,7 +1369,8 @@ export function mountExtras(app, q) {
     if (req.query.hasta) { params.push(req.query.hasta); cond.push('v.fecha<=$' + params.length); }
     const where = cond.length ? 'WHERE ' + cond.join(' AND ') : '';
     const r = await q(`
-      SELECT v.id, v.fecha, v.fecha_fin, v.multidia, v.estado, v.cerrada, v.hora_entrada, v.hora_salida, v.cliente_id, v.asignada_por, v.tipo, v.orden, v.hora, c.nombre AS cliente,
+      SELECT v.id, v.fecha, v.fecha_fin, v.multidia, v.estado, v.cerrada, v.hora_entrada, v.hora_salida, v.cliente_id, v.asignada_por, v.tipo, v.orden, v.hora, v.ticket_id,
+             (SELECT tk.estado FROM tickets tk WHERE tk.id=v.ticket_id) AS ticket_estado, c.nombre AS cliente,
              COALESCE((SELECT string_agg(t2.nombre, ', ' ORDER BY t2.nombre) FROM visita_tecnicos vt JOIN tecnicos t2 ON t2.id=vt.tecnico_id WHERE vt.visita_id=v.id), t.nombre) AS tecnico,
              (SELECT array_agg(vt.tecnico_id ORDER BY vt.tecnico_id) FROM visita_tecnicos vt WHERE vt.visita_id=v.id) AS tecnico_ids,
              (SELECT count(*) FROM pruebas p WHERE p.visita_id=v.id)::int AS pruebas,

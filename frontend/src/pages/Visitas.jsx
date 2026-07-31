@@ -12,6 +12,13 @@ const ESTADOS = [['', 'Todas'], ['programada', 'Programadas'], ['en_curso', 'En 
 const RING = { programada: '', en_curso: 'ring-ok', cerrada: 'ring-info' };
 const DOTC = { programada: 'var(--subtle)', en_curso: 'var(--ok)', cerrada: 'var(--info)' };
 const TIMEAC = { programada: '', en_curso: ' ac-ok', cerrada: ' ac-info' };
+// Estado del ticket asociado a la visita: [color texto, fondo, etiqueta] para el pill TK-N.
+const TK_EST = { abierto: ['#b45309', '#fef3c7', 'Abierto'], en_proceso: ['#1d4ed8', '#dbeafe', 'En proceso'], esperando_cliente: ['#b45309', '#fef3c7', 'Esperando cliente'], esperando_ies: ['#7c3aed', '#ede9fe', 'Esperando IES'], resuelto: ['#15803d', '#dcfce7', 'Resuelto'], cerrado: ['#475569', '#e2e8f0', 'Cerrado'] };
+function TicketPill({ v }) {
+  if (!v.ticket_id) return null;
+  const [col, bg, lbl] = TK_EST[v.ticket_estado] || TK_EST.abierto;
+  return <span className="tb-tk" data-tip={'Ticket TK-' + v.ticket_id + ' · ' + lbl} style={{ background: bg, color: col, fontSize: 9, fontWeight: 800, padding: '0 4px', borderRadius: 5, marginLeft: 4, whiteSpace: 'nowrap', flexShrink: 0, lineHeight: '14px' }}>TK-{v.ticket_id}</span>;
+}
 
 function duracion(v) {
   if (!v.hora_entrada) return '-';
@@ -232,7 +239,6 @@ export default function Visitas() {
   );
 }
 
-
 // Modal de borrado de visita: diseño estilizado; exige escribir "borrar" para confirmar.
 function BorrarVisitaModal({ visita, onClose, onDone }) {
   const [txt, setTxt] = useState('');
@@ -280,6 +286,7 @@ function BorrarVisitaModal({ visita, onClose, onDone }) {
     </Modal>
   );
 }
+
 
 export function AgendarModal({ nuevo, clientes, tecnicos, onClose, onSave }) {
   const [f, setF] = useState({ ...nuevo, modo: nuevo.modo || 'un_dia', hasta: nuevo.hasta || '', sinFinde: nuevo.sinFinde !== false });
@@ -495,7 +502,7 @@ function Calendario({ visitas, tecnicos = [], onOpen, onReschedule, onReassign, 
                           else if (onReassign) { onReassign(id, k, f.id); } }}
                         onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtx({ x: e.clientX, y: e.clientY, v }); }}
                         onClick={e => { e.stopPropagation(); onOpen(v.id); }} title={(v.titulo ? v.titulo + ' · ' : '') + v.cliente + (v._diaTot ? ' · Dia ' + v._dia + '/' + v._diaTot : '') + (v.tipo === 'correctiva' ? ' · Correctiva' : '')}>
-                        <Icon name={ic} size={11} />{v.tipo === 'correctiva' && <span className="tb-corr" />}{v._diaTot ? <b className="cal-dia">D{v._dia}/{v._diaTot}</b> : null}<span className="tb-name">{v.titulo || v.cliente}</span>
+                        <Icon name={ic} size={11} />{v.tipo === 'correctiva' && <span className="tb-corr" />}{v._diaTot ? <b className="cal-dia">D{v._dia}/{v._diaTot}</b> : null}<span className="tb-name">{v.titulo || v.cliente}</span><TicketPill v={v} />
                       </div>
                     ); })}
                   </div>
