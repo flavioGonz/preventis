@@ -89,13 +89,14 @@ export default function Tickets() {
   const [convNuevo, setConvNuevo] = useState(null);
   const [tecAv, setTecAv] = useState({});
   const [usuarios, setUsuarios] = useState([]);
-  const [estado, setEstado] = useState('');
-  const [prio, setPrio] = useState('');
-  const [clienteId, setClienteId] = useState('');
-  const [asignado, setAsignado] = useState('');
+  const [estado, setEstado] = useState([]);
+  const [prio, setPrio] = useState([]);
+  const [clienteId, setClienteId] = useState([]);
+  const [asignado, setAsignado] = useState([]);
   const [conVisita, setConVisita] = useState('');
   const [sheet, setSheet] = useState(false);
   const [q, setQ] = useState('');
+  const toggle = (arr, setArr, v) => setArr(arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v]);
   const [modal, setModal] = useState(null);
   const [aBorrar, setABorrar] = useState(null);
   const [ctx, setCtx] = useState(null); // {x,y,t}
@@ -104,10 +105,10 @@ export default function Tickets() {
   const LIMIT = 40;
   const load = () => {
     const p = new URLSearchParams();
-    if (estado) p.set('estado', estado);
-    if (prio) p.set('prioridad', prio);
-    if (clienteId) p.set('cliente_id', clienteId);
-    if (asignado) p.set('asignado', asignado);
+    estado.forEach(v => p.append('estado', v));
+    prio.forEach(v => p.append('prioridad', v));
+    clienteId.forEach(v => p.append('cliente_id', v));
+    asignado.forEach(v => p.append('asignado', v));
     if (conVisita) p.set('con_visita', conVisita);
     if (q) p.set('search', q);
     p.set('page', page); p.set('limit', LIMIT);
@@ -132,18 +133,19 @@ export default function Tickets() {
   useEffect(() => { const tmr = setTimeout(load, 250); return () => clearTimeout(tmr); }, [estado, prio, clienteId, asignado, conVisita, q, page]);
 
   // Filtros activos (chips removibles) y contador para el boton "Filtros".
+  const ESTADO_OPTS = [['abierto', 'Abierto'], ['en_proceso', 'En proceso'], ['esperando_cliente', 'Esperando cliente'], ['esperando_ies', 'Esperando IES'], ['resuelto', 'Resuelto'], ['cerrado', 'Cerrado'], ['vencidos', 'Vencidos']];
   const nomCliente = (id) => (clientes.find(c => String(c.id) === String(id)) || {}).nombre || ('Cliente ' + id);
   const estLabel = (e) => e === 'vencidos' ? 'Vencidos' : (EST[e] ? EST[e][1] : e);
-  const filtCount = [estado, prio, clienteId, asignado, conVisita].filter(Boolean).length;
-  const limpiar = () => { setEstado(''); setPrio(''); setClienteId(''); setAsignado(''); setConVisita(''); setQ(''); };
+  const filtCount = estado.length + prio.length + clienteId.length + asignado.length + (conVisita ? 1 : 0);
+  const limpiar = () => { setEstado([]); setPrio([]); setClienteId([]); setAsignado([]); setConVisita(''); setQ(''); };
   const activos = [
-    estado && { key: 'estado', label: 'Estado: ' + estLabel(estado), clear: () => setEstado('') },
-    prio && { key: 'prio', label: 'Prioridad: ' + (PRIO[prio] || [''])[0], clear: () => setPrio('') },
-    clienteId && { key: 'cli', label: 'Cliente: ' + nomCliente(clienteId), clear: () => setClienteId('') },
-    asignado && { key: 'asig', label: 'Asignado: ' + (asignado === '__none__' ? 'Sin asignar' : asignado), clear: () => setAsignado('') },
-    conVisita && { key: 'vis', label: conVisita === 'con' ? 'Con visita' : 'Sin visita', clear: () => setConVisita('') },
-    q && { key: 'q', label: 'Búsqueda: “' + q + '”', clear: () => setQ('') },
-  ].filter(Boolean);
+    ...estado.map(e => ({ key: 'e' + e, label: 'Estado: ' + estLabel(e), clear: () => setEstado(estado.filter(x => x !== e)) })),
+    ...prio.map(p => ({ key: 'p' + p, label: 'Prioridad: ' + (PRIO[p] || [''])[0], clear: () => setPrio(prio.filter(x => x !== p)) })),
+    ...clienteId.map(c => ({ key: 'c' + c, label: 'Cliente: ' + nomCliente(c), clear: () => setClienteId(clienteId.filter(x => x !== c)) })),
+    ...asignado.map(a => ({ key: 'a' + a, label: 'Asignado: ' + (a === '__none__' ? 'Sin asignar' : a), clear: () => setAsignado(asignado.filter(x => x !== a)) })),
+    ...(conVisita ? [{ key: 'vis', label: conVisita === 'con' ? 'Con visita' : 'Sin visita', clear: () => setConVisita('') }] : []),
+    ...(q ? [{ key: 'q', label: 'Búsqueda: “' + q + '”', clear: () => setQ('') }] : []),
+  ];
 
   useEffect(() => { if (!ctx) return; const close = () => { setCtx(null); setSub(null); }; window.addEventListener('click', close); window.addEventListener('scroll', close, true); return () => { window.removeEventListener('click', close); window.removeEventListener('scroll', close, true); }; }, [ctx]);
   const cambiarCampo = async (t, campo, valor) => { try { await api.put('/api/tickets/' + t.id, { ...t, [campo]: valor }); toast.ok('Ticket actualizado'); setCtx(null); setSub(null); reload(); } catch (e) { toast.err(e.message); } };
@@ -191,13 +193,13 @@ export default function Tickets() {
         {[['abierto', 'Abiertos'], ['en_proceso', 'En proceso'], ['esperando_cliente', 'Esperando cliente'], ['esperando_ies', 'Esperando IES'], ['resuelto', 'Resueltos'], ['cerrado', 'Cerrados']].map(([e, l]) => {
           const [tone, , ic] = EST[e];
           return (
-            <div key={e} className={'tkl-stat ' + tone + (estado === e ? ' on' : '')} onClick={() => setEstado(estado === e ? '' : e)}>
+            <div key={e} className={'tkl-stat ' + tone + (estado.includes(e) ? ' on' : '')} onClick={() => toggle(estado, setEstado, e)}>
               <span className="ts-ic"><Icon name={ic} size={16} /></span>
               <div><b>{stats[e] || 0}</b><small>{l}</small></div>
             </div>
           );
         })}
-        <div className={'tkl-stat falla' + (estado === 'vencidos' ? ' on' : '')} onClick={() => setEstado(estado === 'vencidos' ? '' : 'vencidos')}>
+        <div className={'tkl-stat falla' + (estado.includes('vencidos') ? ' on' : '')} onClick={() => toggle(estado, setEstado, 'vencidos')}>
           <span className="ts-ic"><Icon name="alert" size={16} /></span>
           <div><b>{stats.vencidos || 0}</b><small>Vencidos</small></div>
         </div>
@@ -225,39 +227,31 @@ export default function Tickets() {
       <Drawer open={sheet} onClose={() => setSheet(false)} title="Filtros de tickets" side="bottom"
         footer={<><button className="btn ghost" onClick={limpiar}>Limpiar</button><button className="btn" onClick={() => setSheet(false)}>Aplicar</button></>}>
         <div className="filter-sheet">
-          <div className="field"><label>Estado</label>
-            <select value={estado} onChange={e => setEstado(e.target.value)}>
-              <option value="">Todos</option>
-              <option value="abierto">Abierto</option>
-              <option value="en_proceso">En proceso</option>
-              <option value="esperando_cliente">Esperando cliente</option>
-              <option value="esperando_ies">Esperando IES</option>
-              <option value="resuelto">Resuelto</option>
-              <option value="cerrado">Cerrado</option>
-              <option value="vencidos">Vencidos</option>
-            </select></div>
-          <div className="field"><label>Prioridad</label>
-            <select value={prio} onChange={e => setPrio(e.target.value)}>
-              <option value="">Todas</option>
-              {Object.entries(PRIO).map(([v, [l]]) => <option key={v} value={v}>{l}</option>)}
-            </select></div>
-          <div className="field"><label>Cliente</label>
-            <select value={clienteId} onChange={e => setClienteId(e.target.value)}>
-              <option value="">Todos</option>
-              {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-            </select></div>
-          <div className="field"><label>Asignado a</label>
-            <select value={asignado} onChange={e => setAsignado(e.target.value)}>
-              <option value="">Todos</option>
-              <option value="__none__">Sin asignar</option>
-              {usuarios.map(u => <option key={u.id} value={u.nombre || u.username}>{u.nombre || u.username}</option>)}
-            </select></div>
+          <div className="muted" style={{ fontSize: 12.5, marginBottom: 10 }}>Podés elegir varios de cada tipo. Dentro de un tipo suma (o); entre tipos se combinan (y).</div>
+          <div className="field"><label>Estado {estado.length > 0 && <span className="fc">{estado.length}</span>}</label>
+            <div className="chips">
+              {ESTADO_OPTS.map(([v, l]) => <span key={v} className={'chip' + (estado.includes(v) ? ' active' : '')} onClick={() => toggle(estado, setEstado, v)}>{l}</span>)}
+            </div></div>
+          <div className="field"><label>Prioridad {prio.length > 0 && <span className="fc">{prio.length}</span>}</label>
+            <div className="chips">
+              {Object.entries(PRIO).map(([v, [l]]) => <span key={v} className={'chip' + (prio.includes(v) ? ' active' : '')} onClick={() => toggle(prio, setPrio, v)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><PrioIcon p={v} size={12} />{l}</span>)}
+            </div></div>
+          <div className="field"><label>Asignado a {asignado.length > 0 && <span className="fc">{asignado.length}</span>}</label>
+            <div className="chips">
+              <span className={'chip' + (asignado.includes('__none__') ? ' active' : '')} onClick={() => toggle(asignado, setAsignado, '__none__')}>Sin asignar</span>
+              {usuarios.map(u => { const nm = u.nombre || u.username; return <span key={u.id} className={'chip' + (asignado.includes(nm) ? ' active' : '')} onClick={() => toggle(asignado, setAsignado, nm)}>{nm}</span>; })}
+            </div></div>
+          <div className="field"><label>Cliente {clienteId.length > 0 && <span className="fc">{clienteId.length}</span>}</label>
+            <div style={{ maxHeight: 180, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 10, padding: 6 }}>
+              {clientes.map(c => <label key={c.id} className="row" style={{ gap: 8, padding: '5px 6px', cursor: 'pointer', fontSize: 14, borderRadius: 6 }}>
+                <input type="checkbox" style={{ width: 'auto' }} checked={clienteId.includes(String(c.id))} onChange={() => toggle(clienteId, setClienteId, String(c.id))} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nombre}</span>
+              </label>)}
+            </div></div>
           <div className="field"><label>Visitas asociadas</label>
-            <select value={conVisita} onChange={e => setConVisita(e.target.value)}>
-              <option value="">Todas</option>
-              <option value="con">Con visita</option>
-              <option value="sin">Sin visita</option>
-            </select></div>
+            <div className="chips">
+              {[['', 'Todas'], ['con', 'Con visita'], ['sin', 'Sin visita']].map(([v, l]) => <span key={v || 'all'} className={'chip' + (conVisita === v ? ' active' : '')} onClick={() => setConVisita(v)}>{l}</span>)}
+            </div></div>
         </div>
       </Drawer>
 

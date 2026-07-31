@@ -1255,13 +1255,26 @@ export function mountExtras(app, q) {
   // ---- Tickets / incidencias ----
   app.get('/api/tickets', wrap(async (req, res) => {
     const cond = [], params = [];
-    const est = req.query.estado;
-    if (est === 'vencidos') cond.push("t.estado NOT IN ('resuelto','cerrado') AND t.fecha_max_resolucion IS NOT NULL AND t.fecha_max_resolucion::date < current_date");
-    else if (est) { params.push(est); cond.push('t.estado=$' + params.length); }
-    if (req.query.prioridad) { params.push(req.query.prioridad); cond.push('t.prioridad=$' + params.length); }
-    if (req.query.cliente_id) { params.push(req.query.cliente_id); cond.push('t.cliente_id=$' + params.length); }
-    if (req.query.asignado === '__none__') cond.push("(t.asignado IS NULL OR t.asignado='')");
-    else if (req.query.asignado) { params.push(req.query.asignado); cond.push('t.asignado=$' + params.length); }
+    const arrOf = (v) => [].concat(v || []).filter(x => x !== '' && x != null);
+    // Estado (multi): OR entre estados elegidos; "vencidos" es una condicion calculada.
+    const estArr = arrOf(req.query.estado);
+    if (estArr.length) {
+      const ors = [], reales = estArr.filter(e => e !== 'vencidos');
+      if (reales.length) { params.push(reales); ors.push('t.estado = ANY($' + params.length + ')'); }
+      if (estArr.includes('vencidos')) ors.push("(t.estado NOT IN ('resuelto','cerrado') AND t.fecha_max_resolucion IS NOT NULL AND t.fecha_max_resolucion::date < current_date)");
+      if (ors.length) cond.push('(' + ors.join(' OR ') + ')');
+    }
+    const prioArr = arrOf(req.query.prioridad);
+    if (prioArr.length) { params.push(prioArr); cond.push('t.prioridad = ANY($' + params.length + ')'); }
+    const cliArr = arrOf(req.query.cliente_id);
+    if (cliArr.length) { params.push(cliArr.map(Number)); cond.push('t.cliente_id = ANY($' + params.length + '::int[])'); }
+    const asigArr = arrOf(req.query.asignado);
+    if (asigArr.length) {
+      const ors = [], names = asigArr.filter(a => a !== '__none__');
+      if (names.length) { params.push(names); ors.push('t.asignado = ANY($' + params.length + ')'); }
+      if (asigArr.includes('__none__')) ors.push("(t.asignado IS NULL OR t.asignado='')");
+      cond.push('(' + ors.join(' OR ') + ')');
+    }
     if (req.query.con_visita === 'con') cond.push('EXISTS (SELECT 1 FROM visitas vv WHERE vv.ticket_id=t.id)');
     else if (req.query.con_visita === 'sin') cond.push('NOT EXISTS (SELECT 1 FROM visitas vv WHERE vv.ticket_id=t.id)');
     if (req.query.search) { params.push('%' + req.query.search + '%'); const i = params.length; cond.push(`(t.titulo ILIKE $${i} OR c.nombre ILIKE $${i} OR t.asignado ILIKE $${i} OR ('TK-' || t.id) ILIKE $${i})`); }
