@@ -2,7 +2,7 @@
 import geoip from 'geoip-lite';
 import { authMiddleware, adminOnly } from './auth.js';
 
-const DEFAULT_CFG = { enabled: true, auto_ban: true, max_intentos: 5, ventana_min: 15, ban_min: 60, geo_enabled: false, paises: [] };
+const DEFAULT_CFG = { enabled: true, auto_ban: true, max_intentos: 5, ventana_min: 15, ban_min: 60, geo_enabled: false, paises: [], paises_baneados: [] };
 let CFG = { ...DEFAULT_CFG };
 const bans = new Map();   // ip -> { expira(ms|null), motivo, pais }
 const fails = new Map();  // ip -> [ts,...]
@@ -60,8 +60,14 @@ export function mountSeguridad(app, q) {
     if (req.method !== 'POST' || req.path !== '/api/auth/login' || !CFG.enabled) return next();
     const ip = clientIp(req); if (isPrivate(ip)) return next();
     const pais = paisDe(ip);
+    // Blacklist de países (siempre activa si hay países listados).
+    if (Array.isArray(CFG.paises_baneados) && CFG.paises_baneados.length && pais && CFG.paises_baneados.includes(pais)) {
+      logEv(q, { ip, pais, tipo: 'bloqueo_pais', detalle: 'país baneado' });
+      return res.status(403).json({ error: 'Acceso no permitido desde tu ubicación', code: 'pais_baneado' });
+    }
+    // Allowlist (solo si está activada la restricción por país).
     if (CFG.geo_enabled && Array.isArray(CFG.paises) && CFG.paises.length && (!pais || !CFG.paises.includes(pais))) {
-      logEv(q, { ip, pais, tipo: 'bloqueo_pais', detalle: 'login' });
+      logEv(q, { ip, pais, tipo: 'bloqueo_pais', detalle: 'fuera de lista blanca' });
       return res.status(403).json({ error: 'Acceso no permitido desde tu ubicación', code: 'pais_bloqueado' });
     }
     const orig = res.json.bind(res);
@@ -88,6 +94,7 @@ export function mountSeguridad(app, q) {
       ventana_min: Math.max(1, parseInt(b.ventana_min, 10) || 15),
       ban_min: Math.max(0, parseInt(b.ban_min, 10) || 0),
       geo_enabled: !!b.geo_enabled, paises: Array.isArray(b.paises) ? b.paises.filter(Boolean) : [],
+      paises_baneados: Array.isArray(b.paises_baneados) ? b.paises_baneados.filter(Boolean) : [],
     };
     await q("INSERT INTO app_config (clave,valor) VALUES ('seguridad',$1) ON CONFLICT (clave) DO UPDATE SET valor=$1", [JSON.stringify(CFG)]);
     res.json(CFG);
@@ -101,12 +108,19 @@ export function mountSeguridad(app, q) {
       count(DISTINCT ip) FILTER (WHERE tipo='intento_fallido' AND ts>now()-interval '24 hours')::int ips_24h
       FROM seguridad_eventos`)).rows[0];
     const activos = (await q("SELECT count(*)::int c FROM seguridad_bans WHERE activo AND (expira IS NULL OR expira>now())")).rows[0].c;
-    const paises = (await q(`SELECT pais, count(*)::int c FROM seguridad_eventos WHERE pais IS NOT NULL AND ts>now()-interval '7 days' AND tipo IN ('intento_fallido','bloqueo_pais','bloqueo_ban') GROUP BY pais ORDER BY c DESC LIMIT 8`)).rows;
-    res.json({ ...s, bans_activos: activos, paises });
+    const paises = (await q(`SELECT pais, count(*)::int c FROM seguridad_eventos WHERE pais IS NOT NULL AND ts>now()-interval '7 days' AND tipo IN ('intento_fallido','bloqueo_pais','bloqueo_ban') GROUP BY pais ORDER BY c DESC LIMIT 12`)).rows;
+    const top_ips = (await q(`SELECT ip, max(pais) pais, count(*)::int c FROM seguridad_eventos WHERE ip IS NOT NULL AND ts>now()-interval '7 days' AND tipo IN ('intento_fallido','bloqueo_ban','bloqueo_pais') GROUP BY ip ORDER BY c DESC LIMIT 12`)).rows;
+    res.json({ ...s, bans_activos: activos, paises, top_ips });
   }));
+  const CATS = { intentos: ['intento_fallido'], baneos: ['ban', 'ban_manual', 'unban'], bloqueos: ['bloqueo_ban', 'bloqueo_pais'], ingresos: ['login_ok'] };
   app.get('/api/seguridad/eventos', authMiddleware, adminOnly, wrap(async (req, res) => {
-    const lim = Math.min(300, parseInt(req.query.limit, 10) || 100);
-    res.json((await q('SELECT id,ts,ip,pais,tipo,detalle,username FROM seguridad_eventos ORDER BY ts DESC LIMIT $1', [lim])).rows);
+    const cond = [], params = [];
+    if (req.query.cat && CATS[req.query.cat]) { params.push(CATS[req.query.cat]); cond.push('tipo = ANY($' + params.length + ')'); }
+    const where = cond.length ? 'WHERE ' + cond.join(' AND ') : '';
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1), limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 40));
+    const total = (await q(`SELECT count(*)::int c FROM seguridad_eventos ${where}`, params)).rows[0].c;
+    const rows = (await q(`SELECT id,ts,ip,pais,tipo,detalle,username FROM seguridad_eventos ${where} ORDER BY ts DESC LIMIT ${limit} OFFSET ${(page - 1) * limit}`, params)).rows;
+    res.json({ rows, total, page, limit, pages: Math.max(1, Math.ceil(total / limit)) });
   }));
   app.get('/api/seguridad/bans', authMiddleware, adminOnly, wrap(async (req, res) => {
     res.json((await q("SELECT ip,pais,motivo,intentos,created_at,expira FROM seguridad_bans WHERE activo AND (expira IS NULL OR expira>now()) ORDER BY created_at DESC")).rows);
