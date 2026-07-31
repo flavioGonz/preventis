@@ -95,6 +95,7 @@ export default function Tickets() {
   const [asignado, setAsignado] = useState([]);
   const [conVisita, setConVisita] = useState('');
   const [visitaAbierta, setVisitaAbierta] = useState('');
+  const [cliQ, setCliQ] = useState('');
   const [sheet, setSheet] = useState(false);
   const [q, setQ] = useState('');
   const toggle = (arr, setArr, v) => setArr(arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v]);
@@ -245,12 +246,22 @@ export default function Tickets() {
               {usuarios.map(u => { const nm = u.nombre || u.username; return <span key={u.id} className={'chip' + (asignado.includes(nm) ? ' active' : '')} onClick={() => toggle(asignado, setAsignado, nm)}>{nm}</span>; })}
             </div></div>
           <div className="field"><label>Cliente {clienteId.length > 0 && <span className="fc">{clienteId.length}</span>}</label>
-            <div style={{ maxHeight: 180, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 10, padding: 6 }}>
-              {clientes.map(c => <label key={c.id} className="row" style={{ gap: 8, padding: '5px 6px', cursor: 'pointer', fontSize: 14, borderRadius: 6 }}>
-                <input type="checkbox" style={{ width: 'auto' }} checked={clienteId.includes(String(c.id))} onChange={() => toggle(clienteId, setClienteId, String(c.id))} />
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nombre}</span>
-              </label>)}
-            </div></div>
+            {clienteId.length > 0 && <div className="row wrap" style={{ gap: 6, marginBottom: 8 }}>
+              {clienteId.map(id => <span key={id} className="chip active" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{nomCliente(id)}<button onClick={() => setClienteId(clienteId.filter(x => x !== id))} aria-label="Quitar" style={{ display: 'inline-flex', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, color: 'inherit', opacity: .7 }}><Icon name="x" size={11} /></button></span>)}
+            </div>}
+            <div className="wa-search" style={{ marginBottom: 0 }}>
+              <Icon name="search" size={16} /><input placeholder="Buscar cliente para agregar…" value={cliQ} onChange={e => setCliQ(e.target.value)} />
+            </div>
+            {cliQ.trim() && (() => {
+              const res = clientes.filter(c => (c.nombre || '').toLowerCase().includes(cliQ.toLowerCase()) && !clienteId.includes(String(c.id))).slice(0, 25);
+              return <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 10, marginTop: 6 }}>
+                {res.length === 0 ? <div className="muted" style={{ padding: '8px 10px', fontSize: 13 }}>Sin coincidencias</div>
+                  : res.map(c => <div key={c.id} className="row" style={{ gap: 8, padding: '7px 10px', cursor: 'pointer', fontSize: 14 }} onClick={() => { toggle(clienteId, setClienteId, String(c.id)); setCliQ(''); }}>
+                    <Icon name="plus" size={13} color="var(--brand-600)" /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nombre}</span>
+                  </div>)}
+              </div>;
+            })()}
+          </div>
           <div className="field"><label>Visitas asociadas</label>
             <div className="chips">
               {[['', 'Todas'], ['con', 'Con visita'], ['sin', 'Sin visita']].map(([v, l]) => <span key={v || 'all'} className={'chip' + (conVisita === v ? ' active' : '')} onClick={() => setConVisita(v)}>{l}</span>)}
