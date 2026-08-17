@@ -365,7 +365,7 @@ function Equipos({ clienteId, user }) {
         ) : <span />}
         <div className="row wrap" style={{ gap: 8 }}>
           <Link className="btn sec sm" to={'/clientes/' + clienteId + '/etiquetas'}><Icon name="qr" size={15} />QRs</Link>
-          <a className="btn sec sm" href={api.fileUrl('/api/clientes/' + clienteId + '/pruebas/export.xlsx')}><Icon name="download" size={15} />Exportar</a>
+          <a className="btn sec sm" href={api.fileUrl('/api/clientes/' + clienteId + '/equipos/export.xlsx')}><Icon name="download" size={15} />Exportar</a>
           <button className="btn sec sm" onClick={() => setImportEq(true)}><Icon name="upload" size={15} />Importar equipos</button>
           <button className="btn sm" onClick={() => setModal({ ...blankEq })}><Icon name="plus" size={16} />Equipo</button>
         </div>

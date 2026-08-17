@@ -151,6 +151,55 @@ export async function exportPruebasExcel({ clienteId, visitaId, desde, hasta }) 
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
+// Exporta la lista de equipos de un cliente (sin datos de pruebas).
+export async function exportEquiposExcel({ clienteId }) {
+  const cli = (await q('SELECT nombre FROM clientes WHERE id=$1', [clienteId])).rows[0];
+  const rows = (await q(`
+    SELECT e.codigo_qr, e.etiqueta, s.nombre AS sistema, e.direccion, e.grupo, e.subgrupo,
+           te.nombre AS tipo_elemento, e.modelo
+    FROM equipos e
+    LEFT JOIN sistemas s ON s.id=e.sistema_id
+    LEFT JOIN tipos_elemento te ON te.id=e.tipo_elemento_id
+    WHERE e.cliente_id=$1
+    ORDER BY s.nombre NULLS LAST, e.grupo NULLS LAST, e.subgrupo NULLS LAST, e.etiqueta NULLS LAST`, [clienteId])).rows;
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Preventis - IES';
+  const ws = wb.addWorksheet('Equipos', { views: [{ state: 'frozen', ySplit: 3 }] });
+  const defs = [
+    ['codigo_qr', 'QR', 16], ['etiqueta', 'Etiqueta', 18], ['sistema', 'Sistema', 20],
+    ['direccion', 'Direccion', 18], ['grupo', 'Grupo', 14], ['subgrupo', 'Subgrupo', 14],
+    ['tipo_elemento', 'Tipo de elemento', 20], ['modelo', 'Modelo', 16],
+  ];
+  ws.columns = defs.map(d => ({ key: d[0], width: d[2] }));
+  const NC = defs.length, lastCol = String.fromCharCode(64 + NC);
+  ws.mergeCells('A1:' + lastCol + '1');
+  const t = ws.getCell('A1');
+  t.value = 'IES  ·  LISTADO DE EQUIPOS' + (cli ? '  ·  ' + cli.nombre : '');
+  t.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+  t.alignment = { vertical: 'middle', indent: 1 };
+  t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F2742' } };
+  ws.getRow(1).height = 30;
+  ws.mergeCells('A2:' + lastCol + '2');
+  const st = ws.getCell('A2');
+  st.value = 'Generado ' + new Date().toLocaleDateString('es-UY') + '  ·  ' + rows.length + ' equipos';
+  st.font = { size: 9, color: { argb: 'FF64748B' } };
+  st.alignment = { indent: 1 };
+  ws.getRow(2).height = 16;
+  const hrow = ws.getRow(3);
+  defs.forEach((d, i) => { hrow.getCell(i + 1).value = d[1]; });
+  hrow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  hrow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF13325A' } };
+  hrow.alignment = { vertical: 'middle' };
+  hrow.height = 20;
+  rows.forEach((r, idx) => {
+    const row = ws.addRow(r);
+    if (idx % 2 === 1) row.eachCell({ includeEmpty: true }, c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F6FB' } }; });
+  });
+  ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: NC } };
+  return Buffer.from(await wb.xlsx.writeBuffer());
+}
+
 // ---- Inventario de equipos a Excel: 1 hoja, cada equipo seguido de su historial de eventos ----
 export async function exportInventarioExcel(filtros = {}) {
   const cond = ['e.activo'], params = [];

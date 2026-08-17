@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import QRCode from 'qrcode';
 import { q, pool } from './db.js';
 import { buildInformePDF } from './pdf.js';
-import { importPruebasExcel, exportPruebasExcel, exportInventarioExcel } from './excel.js';
+import { importPruebasExcel, exportPruebasExcel, exportInventarioExcel, exportEquiposExcel } from './excel.js';
 import { buildClientesTemplate, previewClientesExcel, commitClientesExcel } from './clientes_excel.js';
 import { buildEquiposTemplate, previewEquiposExcel, commitEquiposExcel } from './equipos_excel.js';
 import { mountAuth, ensureAuthSchema } from './auth.js';
@@ -528,6 +528,13 @@ app.get('/api/clientes/:id/pruebas/export.xlsx', wrap(async (req, res) => {
   const buf = await exportPruebasExcel({ clienteId: Number(req.params.id), desde: req.query.desde, hasta: req.query.hasta });
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename="pruebas_cliente_${req.params.id}.xlsx"`);
+  res.send(buf);
+}));
+// Exportar el listado de equipos de un cliente a Excel
+app.get('/api/clientes/:id/equipos/export.xlsx', wrap(async (req, res) => {
+  const buf = await exportEquiposExcel({ clienteId: Number(req.params.id) });
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="equipos_cliente_${req.params.id}.xlsx"`);
   res.send(buf);
 }));
 // Exportar pruebas de una visita
