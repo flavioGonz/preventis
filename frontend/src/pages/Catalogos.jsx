@@ -63,7 +63,7 @@ export default function Catalogos({ user }) {
         </div>
       </div>
       <div className="cfg-body">
-          {(() => { const a = GROUPS.flatMap(g => g.items).find(it => it[0] === tab); return a ? <div className="cfg-head"><span className="cfg-head-ic"><Icon name={a[2]} size={19} /></span><div><h2>{a[1]}</h2>{CFG_DESC[tab] ? <p>{CFG_DESC[tab]}</p> : null}</div></div> : null; })()}
+          {(() => { const a = GROUPS.flatMap(g => g.items).find(it => it[0] === tab); return (a && tab !== 'seguridad_soc') ? <div className="cfg-head"><span className="cfg-head-ic"><Icon name={a[2]} size={19} /></span><div><h2>{a[1]}</h2>{CFG_DESC[tab] ? <p>{CFG_DESC[tab]}</p> : null}</div></div> : null; })()}
           {tab === 'tecnicos' && <CrudList tabla="tecnicos" campos={[['nombre', 'Nombre'], ['telefono', 'Telefono']]} avatar />}
           {tab === 'sistemas' && <CrudList tabla="sistemas" campos={[['nombre', 'Nombre']]} icon="box" />}
           {tab === 'tipos_elemento' && <CrudList tabla="tipos_elemento" campos={[['nombre', 'Nombre'], ['icono', 'Icono', 'icon']]} icon="list" />}

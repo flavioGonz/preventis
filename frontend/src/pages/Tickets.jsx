@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { api } from '../api.js';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader, Loading, Empty, Modal, Field, ClienteSelect } from '../components/ui.jsx';
@@ -82,22 +82,26 @@ export default function Tickets() {
   const nav = useNavigate();
   const [items, setItems] = useState(null);
   const [meta, setMeta] = useState({ total: 0, page: 1, pages: 1 });
-  const [page, setPage] = useState(1);
+  // Filtros persistentes: se recuerdan al salir a un ticket y volver (sessionStorage por pestaña).
+  const SF = (() => { try { return JSON.parse(sessionStorage.getItem('tk_filtros') || '{}'); } catch { return {}; } })();
+  const [page, setPage] = useState(SF.page || 1);
   const [stats, setStats] = useState(null);
   const [clientes, setClientes] = useState([]);
   const [tecnicos, setTecnicos] = useState([]);
   const [convNuevo, setConvNuevo] = useState(null);
   const [tecAv, setTecAv] = useState({});
   const [usuarios, setUsuarios] = useState([]);
-  const [estado, setEstado] = useState([]);
-  const [prio, setPrio] = useState([]);
-  const [clienteId, setClienteId] = useState([]);
-  const [asignado, setAsignado] = useState([]);
-  const [conVisita, setConVisita] = useState('');
-  const [visitaAbierta, setVisitaAbierta] = useState('');
+  const [estado, setEstado] = useState(SF.estado || []);
+  const [prio, setPrio] = useState(SF.prio || []);
+  const [clienteId, setClienteId] = useState(SF.clienteId || []);
+  const [asignado, setAsignado] = useState(SF.asignado || []);
+  const [conVisita, setConVisita] = useState(SF.conVisita || '');
+  const [visitaAbierta, setVisitaAbierta] = useState(SF.visitaAbierta || '');
   const [cliQ, setCliQ] = useState('');
   const [sheet, setSheet] = useState(false);
-  const [q, setQ] = useState('');
+  const [drawerT, setDrawerT] = useState(null);
+  const [q, setQ] = useState(SF.q || '');
+  const primerRender = useRef(true);
   const toggle = (arr, setArr, v) => setArr(arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v]);
   const [modal, setModal] = useState(null);
   const [aBorrar, setABorrar] = useState(null);
@@ -132,7 +136,10 @@ export default function Tickets() {
     }).catch(() => {});
     loadStats();
   }, []);
-  useEffect(() => { setPage(1); }, [estado, prio, clienteId, asignado, conVisita, visitaAbierta, q]);
+  // Guardar filtros para recuperarlos al volver de un ticket.
+  useEffect(() => { sessionStorage.setItem('tk_filtros', JSON.stringify({ estado, prio, clienteId, asignado, conVisita, visitaAbierta, q, page })); }, [estado, prio, clienteId, asignado, conVisita, visitaAbierta, q, page]);
+  // Al cambiar un filtro volver a la pág. 1, salvo en el primer render (para respetar la página guardada).
+  useEffect(() => { if (primerRender.current) { primerRender.current = false; return; } setPage(1); }, [estado, prio, clienteId, asignado, conVisita, visitaAbierta, q]);
   useEffect(() => { const tmr = setTimeout(load, 250); return () => clearTimeout(tmr); }, [estado, prio, clienteId, asignado, conVisita, visitaAbierta, q, page]);
 
   // Filtros activos (chips removibles) y contador para el boton "Filtros".
@@ -280,12 +287,12 @@ export default function Tickets() {
               <span style={{ width: 28 }} /><span className="tkl-key">Clave</span><span style={{ flex: 1 }}>Ticket</span>
               <span style={{ width: 22 }} data-tip="Prioridad">P</span><span style={{ width: 96 }}>Estado</span>
               <span style={{ width: 128 }} data-tip="Visitas asociadas y su estado">Visitas</span>
-              <span style={{ width: 26 }} /><span className="tkl-date">Creado</span><span className="tkl-open-h">Abierto</span><span className="tkl-upd">Actividad</span><span style={{ width: 30 }} />
+              <span style={{ width: 168 }}>Responsable asignado</span><span className="tkl-date">Creado</span><span className="tkl-open-h">Abierto</span><span className="tkl-upd">Actividad</span><span style={{ width: 30 }} />
             </div>
             {shown.map(t => {
               const [ec, el, eic] = EST[t.estado] || EST.abierto;
               return (
-                <div key={t.id} className={'tkl-row' + (['resuelto', 'cerrado'].includes(t.estado) ? ' done' : '') + (ctx && ctx.t.id === t.id ? ' ctx-on' : '')} onClick={() => nav('/tickets/' + t.id)} onContextMenu={e => { e.preventDefault(); setSub(null); setCtx({ x: e.clientX, y: e.clientY, t }); }}>
+                <div key={t.id} className={'tkl-row' + (['resuelto', 'cerrado'].includes(t.estado) ? ' done' : '') + (ctx && ctx.t.id === t.id ? ' ctx-on' : '')} onClick={() => setDrawerT(t)} onContextMenu={e => { e.preventDefault(); setSub(null); setCtx({ x: e.clientX, y: e.clientY, t }); }}>
                   <span className="tkl-type" data-tip="Incidencia"><Icon name="ticket" size={15} /></span>
                   <span className="tkl-key mono">TK-{t.id}</span>
                   <div className="tkl-main">
@@ -295,7 +302,7 @@ export default function Tickets() {
                   <span className="tkl-prio" data-tip={'Prioridad ' + (PRIO[t.prioridad] || PRIO.media)[0]}><PrioIcon p={t.prioridad} /></span>
                   <span className={'badge ' + ec}><Icon name={eic} size={12} />{el}</span>
                   <VisitasCell t={t} />
-                  <span className="tkl-asig" data-tip={t.asignado || 'Sin asignar'}><TkAvatar nombre={t.asignado} src={tecAv[t.asignado]} /></span>
+                  <span className="tkl-asig" style={{ width: 168, flex: 'none', display: 'flex', alignItems: 'center', gap: 7 }} data-tip={t.asignado || 'Sin asignar'}><TkAvatar nombre={t.asignado} src={tecAv[t.asignado]} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, color: t.asignado ? 'var(--text)' : 'var(--subtle)' }}>{t.asignado || 'Sin asignar'}</span></span>
                   <span className="tkl-date mono" data-tip={'Creado ' + new Date(t.created_at).toLocaleString('es-UY')}>{new Date(t.created_at).toLocaleDateString('es-UY')}</span>
                   <span className={'tkl-open' + (['resuelto', 'cerrado'].includes(t.estado) ? ' fin' : '')} data-tip={['resuelto', 'cerrado'].includes(t.estado) ? 'Tiempo hasta resolverse' : 'Tiempo abierto'}>
                     <Icon name="clock" size={11} />{fmtDur(t.created_at, ['resuelto', 'cerrado'].includes(t.estado) ? t.updated_at : null)}
@@ -338,6 +345,46 @@ export default function Tickets() {
         <div className="tkl-ctx-div" />
         <button className="tkl-ctx-it" onClick={() => { setCtx(null); setSub(null); }}><Icon name="x" size={15} />Cancelar</button>
       </div>}
+
+      <Drawer open={!!drawerT} onClose={() => setDrawerT(null)} side="right" title={drawerT ? 'Ticket TK-' + drawerT.id : ''}
+        footer={drawerT && <>
+          <button className="btn ghost" onClick={() => setDrawerT(null)}>Cerrar</button>
+          <button className="btn sec" onClick={() => { const t = drawerT; setDrawerT(null); setModal({ ...t }); }}><Icon name="edit" size={15} />Editar</button>
+          <button className="btn" onClick={() => nav('/tickets/' + drawerT.id)}><Icon name="external" size={15} />Abrir completo</button>
+        </>}>
+        {drawerT && (() => { const [ec, el, eic] = EST[drawerT.estado] || EST.abierto; const vencido = esVencido(drawerT); return (
+          <div className="stack" style={{ gap: 16 }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 17, lineHeight: 1.3 }}>{drawerT.titulo}</h3>
+              {drawerT.cliente && <div className="muted" style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 5, marginTop: 5 }}><Icon name="building" size={13} />{drawerT.cliente}</div>}
+            </div>
+            <div className="row wrap" style={{ gap: 8 }}>
+              <span className={'badge ' + ec}><Icon name={eic} size={12} />{el}</span>
+              <span className="badge gris" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><PrioIcon p={drawerT.prioridad} size={12} />Prioridad {(PRIO[drawerT.prioridad] || PRIO.media)[0]}</span>
+              {vencido && <span className="badge falla"><Icon name="alert" size={12} />Vencido</span>}
+            </div>
+            <div className="kv">
+              <div><dt>Responsable asignado</dt><dd style={{ display: 'flex', alignItems: 'center', gap: 7 }}><TkAvatar nombre={drawerT.asignado} src={tecAv[drawerT.asignado]} size={22} />{drawerT.asignado || 'Sin asignar'}</dd></div>
+              {drawerT.solicitante && <div><dt>Solicitante</dt><dd>{drawerT.solicitante}</dd></div>}
+              <div><dt>Creado</dt><dd>{new Date(drawerT.created_at).toLocaleString('es-UY')}</dd></div>
+              <div><dt>Última actividad</dt><dd>{tmRel(drawerT.updated_at)}</dd></div>
+              <div><dt>{['resuelto', 'cerrado'].includes(drawerT.estado) ? 'Resuelto en' : 'Abierto hace'}</dt><dd>{fmtDur(drawerT.created_at, ['resuelto', 'cerrado'].includes(drawerT.estado) ? drawerT.updated_at : null)}</dd></div>
+              {drawerT.fecha_max_resolucion && <div><dt>Vence</dt><dd>{new Date(drawerT.fecha_max_resolucion).toLocaleDateString('es-UY')}</dd></div>}
+            </div>
+            {drawerT.visitas_total > 0 && <div>
+              <div className="hist-sub" style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><Icon name="calendar" size={13} />Visitas asociadas ({drawerT.visitas_total})</div>
+              <VisitasCell t={drawerT} />
+            </div>}
+            {drawerT.descripcion && <div>
+              <div className="hist-sub" style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><Icon name="file" size={13} />Descripción</div>
+              <p className="contr-text" style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{drawerT.descripcion}</p>
+            </div>}
+            <div className="row wrap" style={{ gap: 8 }}>
+              <button className="btn sec sm" onClick={() => { const t = drawerT; setDrawerT(null); convertir(t); }}><Icon name="calendar" size={15} />Convertir a visita</button>
+            </div>
+          </div>
+        ); })()}
+      </Drawer>
 
       {modal && <TicketModal ticket={modal} clientes={clientes} usuarios={usuarios} onClose={() => setModal(null)} onSave={save} />}
       {aBorrar && <ConfirmModal titulo={'Eliminar TK-' + aBorrar.id} mensaje={'Se eliminara el ticket "' + aBorrar.titulo + '" con todos sus comentarios y adjuntos. Esta accion no se puede deshacer.'} onConfirm={() => del(aBorrar)} onClose={() => setABorrar(null)} />}
