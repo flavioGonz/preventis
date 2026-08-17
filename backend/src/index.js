@@ -515,6 +515,14 @@ app.post('/api/clientes/:id/pruebas/import', memUpload.single('file'), wrap(asyn
   const result = await importPruebasExcel(req.file.buffer, Number(req.params.id), req.body.visita_id || null);
   res.json(result);
 }));
+// Importar pruebas a una visita específica (desde su ficha). Usa el cliente de la visita para matchear equipos.
+app.post('/api/visitas/:id/pruebas/import', memUpload.single('file'), wrap(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Falta archivo' });
+  const v = (await q('SELECT cliente_id FROM visitas WHERE id=$1', [req.params.id])).rows[0];
+  if (!v) return res.status(404).json({ error: 'Visita no encontrada' });
+  const result = await importPruebasExcel(req.file.buffer, Number(v.cliente_id), Number(req.params.id));
+  res.json(result);
+}));
 // Exportar pruebas de un cliente a Excel
 app.get('/api/clientes/:id/pruebas/export.xlsx', wrap(async (req, res) => {
   const buf = await exportPruebasExcel({ clienteId: Number(req.params.id), desde: req.query.desde, hasta: req.query.hasta });

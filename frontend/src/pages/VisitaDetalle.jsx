@@ -25,6 +25,7 @@ export default function VisitaDetalle({ user }) {
   const [scanOpen, setScanOpen] = useState(false);
   const [firmaOpen, setFirmaOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [enviandoMail, setEnviandoMail] = useState(false);
   const [eqFilterOpen, setEqFilterOpen] = useState(false);
   const [usuarios, setUsuarios] = useState([]);
@@ -263,7 +264,10 @@ export default function VisitaDetalle({ user }) {
           </div>
           <div className="desc">{visita.titulo ? fechaUY(visita.fecha) + ' · ' : ''}{visita.cliente} - {visita.tecnico || 'Sin tecnico asignado'}</div>
         </div>
-        <button className="btn sec sm" onClick={() => setExportOpen(true)}><Icon name="download" size={15} />Exportar</button>
+        <div className="row" style={{ gap: 8 }}>
+          <button className="btn sec sm" onClick={() => setImportOpen(true)} data-tip="Importar pruebas desde un Excel a esta visita"><Icon name="upload" size={15} />Importar pruebas</button>
+          <button className="btn sec sm" onClick={() => setExportOpen(true)}><Icon name="download" size={15} />Exportar</button>
+        </div>
       </div>
 
       {cancelada && <div className="cancel-banner">
@@ -513,7 +517,56 @@ export default function VisitaDetalle({ user }) {
       {scanOpen && <Modal title="Escanear equipo" subtitle="Apunta la camara al QR del equipo" onClose={() => setScanOpen(false)}>
         <QRScanner onScan={onScanEquipo} />
       </Modal>}
+      {importOpen && <ImportPruebasModal visitaId={id} onClose={() => setImportOpen(false)} onDone={() => { loadVisita(); loadSug(); }} />}
     </div>
+  );
+}
+
+function ImportPruebasModal({ visitaId, onClose, onDone }) {
+  const [file, setFile] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState(null);
+  const subir = async () => {
+    if (!file) return;
+    setBusy(true); setRes(null);
+    try {
+      const fd = new FormData(); fd.append('file', file);
+      const r = await api.upload('/api/visitas/' + visitaId + '/pruebas/import', fd);
+      setRes(r);
+      if (r.creadas > 0) { toast.ok('Importadas ' + r.creadas + ' pruebas'); onDone && onDone(); }
+      else toast.err('No se importó ninguna prueba (verificá el archivo)');
+    } catch (e) { toast.err(e.message || 'Error al importar'); }
+    setBusy(false);
+  };
+  return (
+    <Modal title="Importar pruebas" subtitle="Cargá un Excel con las pruebas de esta visita" onClose={onClose}
+      footer={<>
+        <button className="btn ghost" onClick={onClose}>Cerrar</button>
+        <button className="btn" onClick={subir} disabled={!file || busy}><Icon name="upload" size={16} />{busy ? 'Importando…' : 'Importar'}</button>
+      </>}>
+      <div className="muted" style={{ fontSize: 13, marginBottom: 12, lineHeight: 1.5 }}>
+        Sirve la planilla exportada desde la app (<b>Exportar → Excel de pruebas</b>) o una plantilla propia.
+        Columnas reconocidas: <b>Etiqueta</b> o <b>Código QR</b>, <b>Estado</b>, <b>Fecha</b> y <b>Comentarios</b>.
+        Cada fila se cruza con un equipo del cliente y registra su prueba en esta visita.
+      </div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 12, border: '1px dashed var(--border)', borderRadius: 12, padding: '14px 16px', cursor: 'pointer' }}>
+        <Icon name="upload" size={20} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 14 }}>{file ? file.name : 'Elegí un archivo .xlsx'}</div>
+          <div className="muted" style={{ fontSize: 12 }}>{file ? 'Listo para importar' : 'Hacé clic para seleccionar'}</div>
+        </div>
+        <input type="file" accept=".xlsx" hidden onChange={e => { setFile(e.target.files?.[0] || null); setRes(null); }} />
+      </label>
+      {res && <div style={{ marginTop: 14 }}>
+        <div className="row wrap" style={{ gap: 8, marginBottom: res.errores?.length ? 10 : 0 }}>
+          <span className="badge ok"><Icon name="check" size={13} />{res.creadas || 0} importadas</span>
+          {res.sin_equipo > 0 && <span className="badge warn"><Icon name="alert" size={13} />{res.sin_equipo} sin equipo</span>}
+        </div>
+        {res.errores?.length > 0 && <div className="card" style={{ maxHeight: 160, overflow: 'auto', fontSize: 12.5, padding: 10 }}>
+          {res.errores.map((er, i) => <div key={i} className="muted" style={{ padding: '2px 0' }}>{er}</div>)}
+        </div>}
+      </div>}
+    </Modal>
   );
 }
 

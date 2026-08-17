@@ -11,13 +11,21 @@ export async function importPruebasExcel(buffer, clienteId, visitaIdArg) {
   const ws = wb.worksheets[0];
   if (!ws) throw new Error('El archivo no tiene hojas');
 
-  // Mapa de encabezados
-  const headers = {};
-  ws.getRow(1).eachCell((cell, col) => {
-    headers[String(cell.value).trim().toLowerCase()] = col;
-  });
-  const get = (row, name) => {
-    const c = headers[name];
+  // Detectar la fila de encabezados. Los archivos EXPORTADOS por la app llevan un título en la
+  // fila 1 y un subtítulo en la 2, con los encabezados reales en la fila 3; una plantilla simple
+  // los tiene en la fila 1. Buscamos la primera fila (de las primeras 12) que contenga alguno de
+  // los nombres reconocidos, y toleramos variantes ("Codigo QR" vs codigo_qr, "Fecha prueba", etc.).
+  const norm = (v) => String(v == null ? '' : (typeof v === 'object' && v.text ? v.text : v)).trim().toLowerCase();
+  const KNOWN = ['etiqueta', 'codigo_qr', 'codigo qr', 'codigo', 'estado', 'fecha', 'fecha prueba', 'comentarios', 'comentario'];
+  let headerRow = 1, headers = {};
+  for (let r = 1; r <= Math.min(12, ws.rowCount); r++) {
+    const map = {};
+    ws.getRow(r).eachCell((cell, col) => { const k = norm(cell.value); if (k) map[k] = col; });
+    if (Object.keys(map).some(k => KNOWN.includes(k))) { headerRow = r; headers = map; break; }
+  }
+  const colOf = (names) => { for (const n of names) if (headers[n]) return headers[n]; return null; };
+  const get = (row, names) => {
+    const c = colOf(names);
     if (!c) return null;
     const v = row.getCell(c).value;
     return v == null ? null : (typeof v === 'object' && v.text ? v.text : v);
@@ -43,13 +51,13 @@ export async function importPruebasExcel(buffer, clienteId, visitaIdArg) {
 
   let creadas = 0, sinEquipo = 0;
   const errores = [];
-  for (let i = 2; i <= ws.rowCount; i++) {
+  for (let i = headerRow + 1; i <= ws.rowCount; i++) {
     const row = ws.getRow(i);
-    const etiqueta = get(row, 'etiqueta');
-    const codigo = get(row, 'codigo_qr') || get(row, 'codigo');
-    const estado = get(row, 'estado');
-    const fecha = get(row, 'fecha');
-    const comentarios = get(row, 'comentarios') || get(row, 'comentario');
+    const etiqueta = get(row, ['etiqueta']);
+    const codigo = get(row, ['codigo_qr', 'codigo qr', 'codigo']);
+    const estado = get(row, ['estado']);
+    const fecha = get(row, ['fecha', 'fecha prueba']);
+    const comentarios = get(row, ['comentarios', 'comentario']);
     if (!etiqueta && !codigo) continue;
 
     // Buscar equipo
@@ -174,10 +182,13 @@ export async function exportInventarioExcel(filtros = {}) {
   const fillRow = (row, argb) => row.eachCell({ includeEmpty: true }, c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } }; });
 
   for (const e of equipos) {
+    // Fila título del equipo
     const h = ws.addRow([e.etiqueta || '(sin etiqueta)', e.sistema || '—', e.tipo_elemento || '—', e.codigo_qr || '']);
     h.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11.5 };
     fillRow(h, 'FF1F2937');
+    // Datos del equipo
     ws.addRow(['Cliente: ' + (e.cliente || '—'), 'Dirección: ' + (e.direccion || '—'), 'Grupo: ' + [e.grupo, e.subgrupo].filter(Boolean).join(' / ') || '—', 'Modelo: ' + (e.modelo || '—')]).font = { size: 10, color: { argb: 'FF475569' } };
+    // Historial de eventos
     const evs = (await q(`
       SELECT COALESCE(p.fecha, v.fecha) AS fecha, est.nombre AS estado, est.es_falla, p.comentarios, v.fecha AS visita_fecha, v.id AS visita_id
       FROM pruebas p
@@ -195,7 +206,7 @@ export async function exportInventarioExcel(filtros = {}) {
         if (ev.es_falla) r.getCell(2).font = { color: { argb: 'FFDC2626' }, bold: true };
       }
     }
-    ws.addRow([]);
+    ws.addRow([]); // separador
   }
   if (!equipos.length) ws.addRow(['Sin equipos para los filtros seleccionados.']);
   return Buffer.from(await wb.xlsx.writeBuffer());
