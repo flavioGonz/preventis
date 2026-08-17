@@ -352,38 +352,56 @@ export default function Tickets() {
           <button className="btn sec" onClick={() => { const t = drawerT; setDrawerT(null); setModal({ ...t }); }}><Icon name="edit" size={15} />Editar</button>
           <button className="btn" onClick={() => nav('/tickets/' + drawerT.id)}><Icon name="external" size={15} />Abrir completo</button>
         </>}>
-        {drawerT && (() => { const [ec, el, eic] = EST[drawerT.estado] || EST.abierto; const vencido = esVencido(drawerT); return (
-          <div className="stack" style={{ gap: 16 }}>
+        {drawerT && (() => {
+          const t = drawerT;
+          const [ec, el, eic] = EST[t.estado] || EST.abierto;
+          const vencido = esVencido(t);
+          const cerrado = ['resuelto', 'cerrado'].includes(t.estado);
+          const L = (icon, text, tip) => <span data-tip={tip} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: 'var(--muted)', fontSize: 12.5, cursor: 'default' }}><Icon name={icon} size={13} />{text}</span>;
+          const secH = { fontSize: 11, fontWeight: 700, letterSpacing: '.6px', textTransform: 'uppercase', color: 'var(--subtle)', marginBottom: 10 };
+          const div = <div style={{ height: 1, background: 'var(--border)', margin: '16px 0' }} />;
+          const val = { fontSize: 13.5, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+          return (
             <div>
-              <h3 style={{ margin: 0, fontSize: 17, lineHeight: 1.3 }}>{drawerT.titulo}</h3>
-              {drawerT.cliente && <div className="muted" style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 5, marginTop: 5 }}><Icon name="building" size={13} />{drawerT.cliente}</div>}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                <span className="mono" data-tip="Clave del ticket" style={{ fontSize: 12, fontWeight: 700, color: 'var(--brand-700)', background: 'var(--brand-soft)', padding: '2px 8px', borderRadius: 6 }}>TK-{t.id}</span>
+                <button className="btn ghost icon" data-tip="Copiar clave" aria-label="Copiar clave" style={{ width: 26, height: 26 }} onClick={() => { navigator.clipboard?.writeText('TK-' + t.id).then(() => toast.ok('Clave copiada')).catch(() => {}); }}><Icon name="clipboard" size={13} /></button>
+              </div>
+              <h3 style={{ margin: '0 0 6px', fontSize: 18, lineHeight: 1.3, fontWeight: 700 }}>{t.titulo}</h3>
+              {t.cliente && <div className="muted" style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }} data-tip="Cliente del ticket"><Icon name="building" size={13} />{t.cliente}</div>}
+              <div className="row wrap" style={{ gap: 8, marginTop: 14 }}>
+                <span className={'badge ' + ec} data-tip="Estado actual"><Icon name={eic} size={12} />{el}</span>
+                <span className="badge gris" data-tip="Prioridad" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><PrioIcon p={t.prioridad} size={12} />{(PRIO[t.prioridad] || PRIO.media)[0]}</span>
+                {vencido && <span className="badge falla" data-tip="Pasó la fecha máxima de resolución"><Icon name="alert" size={12} />Vencido</span>}
+              </div>
+
+              {div}
+              <div style={secH}>Detalles</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '132px 1fr', rowGap: 13, columnGap: 12, alignItems: 'center' }}>
+                {L('users', 'Responsable', 'Persona responsable del ticket')}
+                <div className="row" style={{ gap: 7, minWidth: 0 }}><TkAvatar nombre={t.asignado} src={tecAv[t.asignado]} size={22} /><span style={{ ...val, color: t.asignado ? 'var(--text)' : 'var(--subtle)' }}>{t.asignado || 'Sin asignar'}</span></div>
+                {t.solicitante && L('pen', 'Solicitante', 'Quién reportó o solicitó el ticket')}
+                {t.solicitante && <span style={val}>{t.solicitante}</span>}
+                {L('calendar', 'Creado', 'Fecha y hora de creación')}
+                <span style={val}>{new Date(t.created_at).toLocaleString('es-UY')}</span>
+                {L('history', 'Actividad', 'Última modificación del ticket')}
+                <span style={val}>{tmRel(t.updated_at)}</span>
+                {L('clock', cerrado ? 'Resuelto en' : 'Abierto hace', 'Tiempo transcurrido')}
+                <span style={{ ...val, fontWeight: 600 }}>{fmtDur(t.created_at, cerrado ? t.updated_at : null)}</span>
+                {t.fecha_max_resolucion && L('alert', 'Vence', 'Fecha máxima de resolución (SLA)')}
+                {t.fecha_max_resolucion && <span style={{ ...val, color: vencido ? 'var(--falla)' : 'var(--text)', fontWeight: vencido ? 600 : 400 }}>{new Date(t.fecha_max_resolucion).toLocaleDateString('es-UY')}</span>}
+              </div>
+
+              {t.visitas_total > 0 && <>{div}<div style={secH}>Visitas asociadas ({t.visitas_total})</div><VisitasCell t={t} /></>}
+
+              {t.descripcion && <>{div}<div style={secH}>Descripción</div>
+                <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 10, padding: '11px 13px', fontSize: 13.5, lineHeight: 1.5, whiteSpace: 'pre-wrap', color: 'var(--text)' }}>{t.descripcion}</div></>}
+
+              {div}
+              <button className="btn sec block" data-tip="Crear una visita correctiva a partir de este ticket" onClick={() => { setDrawerT(null); convertir(t); }}><Icon name="calendar" size={15} />Convertir a visita correctiva</button>
             </div>
-            <div className="row wrap" style={{ gap: 8 }}>
-              <span className={'badge ' + ec}><Icon name={eic} size={12} />{el}</span>
-              <span className="badge gris" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><PrioIcon p={drawerT.prioridad} size={12} />Prioridad {(PRIO[drawerT.prioridad] || PRIO.media)[0]}</span>
-              {vencido && <span className="badge falla"><Icon name="alert" size={12} />Vencido</span>}
-            </div>
-            <div className="kv">
-              <div><dt>Responsable asignado</dt><dd style={{ display: 'flex', alignItems: 'center', gap: 7 }}><TkAvatar nombre={drawerT.asignado} src={tecAv[drawerT.asignado]} size={22} />{drawerT.asignado || 'Sin asignar'}</dd></div>
-              {drawerT.solicitante && <div><dt>Solicitante</dt><dd>{drawerT.solicitante}</dd></div>}
-              <div><dt>Creado</dt><dd>{new Date(drawerT.created_at).toLocaleString('es-UY')}</dd></div>
-              <div><dt>Última actividad</dt><dd>{tmRel(drawerT.updated_at)}</dd></div>
-              <div><dt>{['resuelto', 'cerrado'].includes(drawerT.estado) ? 'Resuelto en' : 'Abierto hace'}</dt><dd>{fmtDur(drawerT.created_at, ['resuelto', 'cerrado'].includes(drawerT.estado) ? drawerT.updated_at : null)}</dd></div>
-              {drawerT.fecha_max_resolucion && <div><dt>Vence</dt><dd>{new Date(drawerT.fecha_max_resolucion).toLocaleDateString('es-UY')}</dd></div>}
-            </div>
-            {drawerT.visitas_total > 0 && <div>
-              <div className="hist-sub" style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><Icon name="calendar" size={13} />Visitas asociadas ({drawerT.visitas_total})</div>
-              <VisitasCell t={drawerT} />
-            </div>}
-            {drawerT.descripcion && <div>
-              <div className="hist-sub" style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><Icon name="file" size={13} />Descripción</div>
-              <p className="contr-text" style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{drawerT.descripcion}</p>
-            </div>}
-            <div className="row wrap" style={{ gap: 8 }}>
-              <button className="btn sec sm" onClick={() => { const t = drawerT; setDrawerT(null); convertir(t); }}><Icon name="calendar" size={15} />Convertir a visita</button>
-            </div>
-          </div>
-        ); })()}
+          );
+        })()}
       </Drawer>
 
       {modal && <TicketModal ticket={modal} clientes={clientes} usuarios={usuarios} onClose={() => setModal(null)} onSave={save} />}
