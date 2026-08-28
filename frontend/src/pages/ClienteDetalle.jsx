@@ -18,8 +18,12 @@ export default function ClienteDetalle({ user }) {
   const [cliente, setCliente] = useState(null);
   const [resumen, setResumen] = useState(null);
   const [sp] = useSearchParams();
-  const _t0 = ['visitas', 'equipos', 'contactos', 'ficha', 'fotos', 'planos', 'rupturas', 'tickets'].includes(sp.get('tab')) ? sp.get('tab') : 'info';
+  const _tabs = ['visitas', 'equipos', 'contactos', 'ficha', 'fotos', 'planos', 'rupturas', 'tickets'];
+  const _turl = _tabs.includes(sp.get('tab')) ? sp.get('tab') : null;
+  const _tmem = (() => { try { const v = sessionStorage.getItem('cli_tab_' + id); return _tabs.includes(v) ? v : null; } catch { return null; } })();
+  const _t0 = _turl || _tmem || 'info';
   const [tab, setTab] = useState(_t0);
+  useEffect(() => { try { sessionStorage.setItem('cli_tab_' + id, tab); } catch { /* ignore */ } }, [tab, id]);
   const [edit, setEdit] = useState(false);
   const [editContract, setEditContract] = useState(false);
   const [editDir, setEditDir] = useState(false);
@@ -292,8 +296,12 @@ function Equipos({ clienteId, user }) {
   const [estandar, setEstandar] = useState([]);
   const [modal, setModal] = useState(null);
   const [importEq, setImportEq] = useState(false);
-  const [sort, setSort] = useState({ key: 'tipo_elemento', dir: 1 });
-  const [busq, setBusq] = useState('');
+  // Filtros persistentes por cliente: se recuerdan al entrar a un equipo y volver (sessionStorage, sirve en PWA).
+  const EK = 'eq_filtros_' + clienteId;
+  const SF = (() => { try { return JSON.parse(sessionStorage.getItem(EK) || '{}'); } catch { return {}; } })();
+  const [sort, setSort] = useState(SF.sort || { key: 'tipo_elemento', dir: 1 });
+  const [busq, setBusq] = useState(SF.busq || '');
+  useEffect(() => { sessionStorage.setItem(EK, JSON.stringify({ sort, busq })); }, [sort, busq]);
   const nav = useNavigate();
 
   const sortVal = (e, k) => {

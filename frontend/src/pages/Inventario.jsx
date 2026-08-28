@@ -14,7 +14,10 @@ export default function Inventario() {
   const [clientes, setClientes] = useState([]);
   const [sistemas, setSistemas] = useState([]);
   const [estados, setEstados] = useState([]);
-  const [f, setF] = useState({ cliente_id: '', sistema_id: '', estado: '', search: '' });
+  // Filtros persistentes: se recuerdan al entrar a un equipo y volver (sessionStorage por pestaña, sirve en PWA).
+  const SF = (() => { try { return JSON.parse(sessionStorage.getItem('inv_filtros') || '{}'); } catch { return {}; } })();
+  const [f, setF] = useState(SF.f || { cliente_id: '', sistema_id: '', estado: '', search: '' });
+  useEffect(() => { sessionStorage.setItem('inv_filtros', JSON.stringify({ f })); }, [f]);
   const [sheet, setSheet] = useState(false);
   const nav = useNavigate();
 

@@ -110,6 +110,7 @@ export async function buildInformePDF(visitaId, uploadDir) {
   doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(20).text(v.cliente || '-', ML, ly + 36, { width: CW, align: 'center' });
   doc.fillColor(SKY).font('Helvetica').fontSize(11)
     .text(fdate(v.fecha) + '     ·     ' + (v.tecnico || 'Sin tecnico'), 0, ly + 66, { width: W, align: 'center' });
+  if (v.titulo) doc.fillColor('#ffffff').font('Helvetica-Oblique').fontSize(12).text(v.titulo, ML, ly + 88, { width: CW, align: 'center' });
 
   // Marcadores de referencia inferiores (clinicos)
   const refs = [['REF', 'V-' + pad(visitaId, 5)]];
@@ -163,6 +164,7 @@ export async function buildInformePDF(visitaId, uploadDir) {
 
   // Datos de la visita (par etiqueta-valor con hairlines)
   seccion('Datos de la visita');
+  if (v.titulo) { doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(12).text(v.titulo, ML, doc.y, { width: CW }); doc.moveDown(0.7); }
   const meta = [['Cliente', v.cliente || '-'], ['Direccion', v.direccion || '-'], ['Telefono', v.telefono || '-'],
                 ['Fecha', fdate(v.fecha)], ['Tecnico', v.tecnico || '-'], ['Mantenimiento', v.tipo === 'correctiva' ? 'Correctivo' : 'Preventivo']];
   let yy = doc.y;

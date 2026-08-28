@@ -33,13 +33,16 @@ export default function Visitas() {
   const [items, setItems] = useState(null);
   const [tecnicos, setTecnicos] = useState([]);
   const [clientes, setClientes] = useState([]);
-  const [f, setF] = useState({ estado: '', tecnico_id: '', cliente_id: '', desde: '', hasta: '' });
+  // Filtros persistentes: se recuerdan al entrar a una visita y volver (sessionStorage por pestaña, sirve en PWA).
+  const SF = (() => { try { return JSON.parse(sessionStorage.getItem('vis_filtros') || '{}'); } catch { return {}; } })();
+  const [f, setF] = useState(SF.f || { estado: '', tecnico_id: '', cliente_id: '', desde: '', hasta: '' });
   const [sheet, setSheet] = useState(false);
   const [nuevo, setNuevo] = useState(null);
-  const [vista, setVista] = useState('calendario');
+  const [vista, setVista] = useState(SF.vista || 'calendario');
   const [esDesk, setEsDesk] = useState(typeof window !== 'undefined' && window.innerWidth >= 900);
   useEffect(() => { const fn = () => setEsDesk(window.innerWidth >= 900); window.addEventListener('resize', fn); return () => window.removeEventListener('resize', fn); }, []);
-  const [q, setQ] = useState('');
+  const [q, setQ] = useState(SF.q || '');
+  useEffect(() => { sessionStorage.setItem('vis_filtros', JSON.stringify({ f, vista, q })); }, [f, vista, q]);
   const [aBorrar, setABorrar] = useState(null);
   const esAdmin = getUser()?.rol === 'admin';
   const nav = useNavigate();

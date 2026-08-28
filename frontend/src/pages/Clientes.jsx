@@ -13,11 +13,14 @@ const FREC_LABEL = { mensual: 'Mensual', bimestral: 'Bimestral', trimestral: 'Tr
 const blank = { nombre: '', direccion: '', telefono: '', frecuencia: 'mensual' };
 
 export default function Clientes() {
+  // Filtros persistentes: se recuerdan al entrar a un cliente y volver (sessionStorage por pestaña, sirve en PWA).
+  const SF = (() => { try { return JSON.parse(sessionStorage.getItem('cli_filtros') || '{}'); } catch { return {}; } })();
   const [clientes, setClientes] = useState(null);
   const [meta, setMeta] = useState({ total: 0, page: 1, pages: 1 });
-  const [page, setPage] = useState(1);
-  const [filtro, setFiltro] = useState('');
-  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(SF.page || 1);
+  const [filtro, setFiltro] = useState(SF.filtro || '');
+  const [search, setSearch] = useState(SF.search || '');
+  useEffect(() => { sessionStorage.setItem('cli_filtros', JSON.stringify({ filtro, search, page })); }, [filtro, search, page]);
   const [modal, setModal] = useState(null);
   const [sheet, setSheet] = useState(false);
   const [esDesk, setEsDesk] = useState(typeof window !== 'undefined' && window.innerWidth >= 900);
