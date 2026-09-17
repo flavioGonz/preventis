@@ -905,7 +905,8 @@ CREATE TABLE public.tecnicos (
     telefono text,
     activo boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    avatar_path text
+    avatar_path text,
+    orden integer
 );
 
 

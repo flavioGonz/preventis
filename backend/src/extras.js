@@ -148,6 +148,7 @@ export function mountExtras(app, q) {
       ALTER TABLE equipos ADD COLUMN IF NOT EXISTS cred_notas text;
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS avatar_path text;
       ALTER TABLE tecnicos ADD COLUMN IF NOT EXISTS avatar_path text;
+      ALTER TABLE tecnicos ADD COLUMN IF NOT EXISTS orden integer;
       CREATE TABLE IF NOT EXISTS planos (id serial PRIMARY KEY, cliente_id int REFERENCES clientes(id) ON DELETE CASCADE, nombre text, path text, shapes jsonb DEFAULT '[]'::jsonb, created_at timestamptz DEFAULT now());`))
     .then(() => q(`
       CREATE TABLE IF NOT EXISTS visita_tecnicos (

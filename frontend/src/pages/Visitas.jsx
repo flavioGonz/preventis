@@ -473,7 +473,7 @@ function Calendario({ visitas, tecnicos = [], onOpen, onReschedule, onReassign, 
       <div className="cal-grid cal-week">{days.map(d => cell(d, true))}</div></>;
   } else if (calView === 'equipo') {
     const m = monday(cur); const days = []; for (let i = 0; i < 7; i++) { const d = new Date(m); d.setDate(m.getDate() + i); days.push(d); }
-    const filas = [...tecnicos.map(t => ({ id: t.id, nombre: t.nombre, avatar: t.avatar_path })), { id: 0, nombre: 'Sin asignar', avatar: null }];
+    const filas = [...[...tecnicos].sort((a, b) => ((a.orden ?? 1e9) - (b.orden ?? 1e9)) || (a.nombre || '').localeCompare(b.nombre || '')).map(t => ({ id: t.id, nombre: t.nombre, avatar: t.avatar_path })), { id: 0, nombre: 'Sin asignar', avatar: null }];
     const ESTI = { cerrada: ['tb-ok', 'check'], en_curso: ['tb-prog', 'clock'], programada: ['tb-pend', 'history'] };
     body = (
       <div className="tb-wrap">

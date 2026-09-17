@@ -64,7 +64,7 @@ export default function Catalogos({ user }) {
       </div>
       <div className="cfg-body">
           {(() => { const a = GROUPS.flatMap(g => g.items).find(it => it[0] === tab); return (a && tab !== 'seguridad_soc') ? <div className="cfg-head"><span className="cfg-head-ic"><Icon name={a[2]} size={19} /></span><div><h2>{a[1]}</h2>{CFG_DESC[tab] ? <p>{CFG_DESC[tab]}</p> : null}</div></div> : null; })()}
-          {tab === 'tecnicos' && <CrudList tabla="tecnicos" campos={[['nombre', 'Nombre'], ['telefono', 'Telefono']]} avatar />}
+          {tab === 'tecnicos' && <CrudList tabla="tecnicos" campos={[['orden', 'Orden', 'num'], ['nombre', 'Nombre'], ['telefono', 'Telefono']]} avatar />}
           {tab === 'sistemas' && <CrudList tabla="sistemas" campos={[['nombre', 'Nombre']]} icon="box" />}
           {tab === 'tipos_elemento' && <CrudList tabla="tipos_elemento" campos={[['nombre', 'Nombre'], ['icono', 'Icono', 'icon']]} icon="list" />}
           {tab === 'estados_equipo' && <CrudList tabla="estados_equipo" campos={[['nombre', 'Nombre'], ['es_falla', 'Cuenta como falla', 'bool'], ['icono', 'Icono', 'icon']]} icon="alert" />}
@@ -135,7 +135,9 @@ function CrudList({ tabla, campos, avatar, icon }) {
                       ? <input type="checkbox" style={{ width: 'auto' }} checked={!!it[c[0]]} onChange={e => update(it, c[0], e.target.checked)} />
                       : c[2] === 'icon'
                         ? <div className="row" style={{ gap: 8 }}><span className="ico" style={{ width: 34, height: 34, background: 'var(--brand-soft)', color: 'var(--brand-600)' }}><Icon name={it[c[0]] || 'box'} size={16} /></span><select style={{ maxWidth: 150 }} value={it[c[0]] || ''} onChange={e => update(it, c[0], e.target.value)}><option value="">(sin icono)</option>{ICONOS.map(i => <option key={i} value={i}>{i}</option>)}</select></div>
-                        : <input defaultValue={it[c[0]] || ''} onBlur={e => e.target.value !== (it[c[0]] || '') && update(it, c[0], e.target.value)} />}
+                        : c[2] === 'num'
+                          ? <input type="number" min="0" step="1" style={{ width: 80 }} title="Posicion en la vista Tecnicos de Visitas (menor primero)" defaultValue={it[c[0]] ?? ''} onBlur={e => e.target.value !== String(it[c[0]] ?? '') && update(it, c[0], e.target.value === '' ? null : Number(e.target.value))} />
+                          : <input defaultValue={it[c[0]] || ''} onBlur={e => e.target.value !== (it[c[0]] || '') && update(it, c[0], e.target.value)} />}
                   </td>
                 ))}
                 <td style={{ textAlign: 'right' }}><button className="btn ghost icon" onClick={() => del(it)}><Icon name="trash" size={16} /></button></td>
@@ -147,6 +149,8 @@ function CrudList({ tabla, campos, avatar, icon }) {
                 <td key={c[0]}>
                   {c[2] === 'bool'
                     ? <input type="checkbox" style={{ width: 'auto' }} checked={!!nuevo[c[0]]} onChange={e => setNuevo({ ...nuevo, [c[0]]: e.target.checked })} />
+                    : c[2] === 'num'
+                      ? <input type="number" min="0" step="1" style={{ width: 80 }} placeholder="#" value={nuevo[c[0]]} onChange={e => setNuevo({ ...nuevo, [c[0]]: e.target.value })} />
                     : c[2] === 'icon'
                       ? <select value={nuevo[c[0]] || ''} onChange={e => setNuevo({ ...nuevo, [c[0]]: e.target.value })}><option value="">(icono)</option>{ICONOS.map(i => <option key={i} value={i}>{i}</option>)}</select>
                       : <input placeholder={'Nuevo ' + c[1].toLowerCase()} value={nuevo[c[0]]} onChange={e => setNuevo({ ...nuevo, [c[0]]: e.target.value })} />}

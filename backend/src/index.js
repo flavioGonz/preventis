@@ -66,14 +66,20 @@ const wrap = fn => (req, res) => fn(req, res).catch(e => {
 app.get('/api/health', (req, res) => res.json({ ok: true, ts: Date.now() }));
 
 // ============== Catálogos genéricos ==============
+// Orden de listado por tabla (tecnicos: por el campo 'orden' ascendente, sin numero al final).
+const CATALOG_ORDER = { tecnicos: 'orden ASC NULLS LAST, nombre, id' };
+// Campos numericos: el texto vacio se guarda como NULL.
+const CATALOG_NUM = new Set(['orden']);
+const catVal = (c, v) => (CATALOG_NUM.has(c) ? (v === '' || v === null ? null : parseInt(v, 10)) : v);
+
 function catalogRoutes(tabla, campos) {
   app.get(`/api/${tabla}`, wrap(async (req, res) => {
-    const r = await q(`SELECT * FROM ${tabla} ORDER BY id`);
+    const r = await q(`SELECT * FROM ${tabla} ORDER BY ${CATALOG_ORDER[tabla] || 'id'}`);
     res.json(r.rows);
   }));
   app.post(`/api/${tabla}`, wrap(async (req, res) => {
     const cols = campos.filter(c => req.body[c] !== undefined);
-    const vals = cols.map(c => req.body[c]);
+    const vals = cols.map(c => catVal(c, req.body[c]));
     const ph = cols.map((_, i) => `$${i + 1}`).join(',');
     try {
       const r = await q(`INSERT INTO ${tabla} (${cols.join(',')}) VALUES (${ph}) RETURNING *`, vals);
@@ -86,7 +92,7 @@ function catalogRoutes(tabla, campos) {
   app.put(`/api/${tabla}/:id`, wrap(async (req, res) => {
     const cols = campos.filter(c => req.body[c] !== undefined);
     const sets = cols.map((c, i) => `${c}=$${i + 1}`).join(',');
-    const vals = cols.map(c => req.body[c]);
+    const vals = cols.map(c => catVal(c, req.body[c]));
     vals.push(req.params.id);
     const r = await q(`UPDATE ${tabla} SET ${sets} WHERE id=$${vals.length} RETURNING *`, vals);
     res.json(r.rows[0]);
@@ -96,7 +102,7 @@ function catalogRoutes(tabla, campos) {
     res.json({ ok: true });
   }));
 }
-catalogRoutes('tecnicos', ['nombre', 'telefono', 'activo']);
+catalogRoutes('tecnicos', ['nombre', 'telefono', 'activo', 'orden']);
 catalogRoutes('sistemas', ['nombre']);
 catalogRoutes('tipos_elemento', ['nombre', 'icono']);
 catalogRoutes('estados_equipo', ['nombre', 'es_falla', 'orden', 'icono']);
