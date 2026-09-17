@@ -154,6 +154,19 @@ EOF
 chmod 600 "$ENV_FILE"
 ok "Entorno en $ENV_FILE (chmod 600)"
 
+# -------------------------------------------- Esquema base (solo si la base está vacía)
+# extras.js migra/crea el resto de tablas al arrancar la API, pero necesita
+# que existan las tablas base de backend/db/schema.sql.
+PSQL=(psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" -v ON_ERROR_STOP=1 -q)
+if [ "$(PGPASSWORD="$PGPASSWORD" "${PSQL[@]}" -tAc "SELECT to_regclass('public.clientes') IS NULL")" = "t" ]; then
+  say "Base vacía: aplicando esquema y datos iniciales..."
+  PGPASSWORD="$PGPASSWORD" "${PSQL[@]}" -f "$APP_DIR/backend/db/schema.sql" \
+    && PGPASSWORD="$PGPASSWORD" "${PSQL[@]}" -f "$APP_DIR/backend/db/seed.sql" \
+    && ok "Esquema base aplicado" || die "No se pudo aplicar el esquema base."
+else
+  ok "La base ya tiene tablas; no se toca el esquema"
+fi
+
 # -------------------------------------------- Build
 say "Instalando dependencias del backend..."
 ( cd "$APP_DIR/backend"  && { [ -f package-lock.json ] && npm ci --omit=dev || npm install --omit=dev; } )

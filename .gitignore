@@ -16,6 +16,9 @@ backend/uploads/
 backups/
 *.sql
 *.dump
+# ...excepto el esquema y los datos iniciales, que el instalador necesita
+!backend/db/schema.sql
+!backend/db/seed.sql
 
 # Logs
 *.log
